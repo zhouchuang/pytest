@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 import xlrd
 import tkinter as tk
 import win32ui
