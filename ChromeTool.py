@@ -2,6 +2,7 @@
 import os
 import time
 import sys
+import re
 from socket import socket, AF_INET, SOCK_DGRAM
 import threading
 
@@ -69,10 +70,7 @@ def userLogin():
     pawdinput.send_keys(property["password"])
     submitbt = driver.find_element_by_id("loginBtn");
     submitbt.click()
-    my_moneys = driver.find_element_by_xpath("//div[@class='i_ac']/a").text.replace('元', '').replace(',', '');
-    print my_moneys
-    my_money = float(str(my_moneys))
-    print my_money
+
     loginHandler = driver.current_window_handle
     handler['login'] = loginHandler
 
@@ -103,11 +101,10 @@ def invest(loanId):
     # 查询还能投多少钱，填充钱
     inverstedmoney = driver.find_element_by_id("investAmountspan").get_attribute("val")
     investinput_tip = driver.find_element_by_id("investinput_tip").text
-    print investinput_tip
     investAmountInput = driver.find_element_by_id("investAmountInput")
-    investmoney = "inverstedmoney：{0}\t\tmy_money：{1}\t\tmaxInvestMoney：{2}".decode("utf-8").format(float(inverstedmoney), my_money,
+    investmoney = "可投余额：{0}\t\t我的余额：{1}\t\t我的最大投资额度：{2}".decode("utf-8").format(float(inverstedmoney), my_money,
                                                                                     int(property["maxInvestMoney"]));
-    print  investmoney
+    print investmoney
     investAmountInput.send_keys(str(int(min(float(inverstedmoney), my_money, int(property["maxInvestMoney"])))))
     driver.find_element_by_id("loanviewsbtn").click()
     time.sleep(0.5)
@@ -157,10 +154,8 @@ def userLoginAndInvsert(loanId):
     #查询还能投多少钱，填充钱
     inverstedmoney = driver.find_element_by_id("investAmountspan").get_attribute("val")
     investinput_tip = driver.find_element_by_id("investinput_tip").text
-    print investinput_tip
     investAmountInput = driver.find_element_by_id("investAmountInput")
     investmoney = "inverstedmoney：{0}\t\tmy_money：{1}\t\tmaxInvestMoney：{2}".format(float(inverstedmoney), my_money, int(property["maxInvestMoney"]));
-    print  investmoney
     investAmountInput.send_keys( str(int(min(float(inverstedmoney),my_money,int(property["maxInvestMoney"])))))
     driver.find_element_by_id("loanviewsbtn").click()
     time.sleep(0.5)
@@ -181,8 +176,34 @@ def receiver():
         #udpSerSock.sendto('[%s] %s' % (time.ctime(), data), addr)
         #print '...received from and retuned to:', addr
         print data
+        # if data=='close':
+        #     driver.close()
+        #     udpSerSock.close()
+        #     closeHandler()
+        # else:
         invest(data)
     udpSerSock.close()
+
+def closeHandler():
+    pathstr =  os.path.realpath(sys.argv[0]).split('\\')
+    filename = pathstr[-1]
+    cmd = "tasklist /fi \""+"imagename eq "+filename+"\"";
+    r = os.popen(cmd)
+    text = r.read()
+    r.close()
+    text =  text.decode('gbk')
+    print text
+    # if os.path.exists("msg.txt"):
+    #     os.remove("msg.txt")
+    result = re.findall('.*\\s+(\\d+)\\s+Console.*', text)
+    for pid in result:
+        try:
+            print  "pid:{0}".decode("utf-8").format(pid)
+            os.popen("taskkill /f /pid:"+ str(pid))
+        except Exception, e:
+            print e.message
+    sys.exit()
+
 if __name__ == '__main__':
     reload(sys)
     sys.setdefaultencoding('utf-8')
