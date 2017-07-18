@@ -70,25 +70,31 @@ def userLogin():
     pawdinput.send_keys(property["password"])
     submitbt = driver.find_element_by_id("loginBtn");
     submitbt.click()
-
+    time.sleep(0.5)
+    driver.find_element_by_xpath("//p[@class='i_regbtn']/a").click()
+    time.sleep(0.5)
+    my_moneys = driver.find_element_by_xpath("//li[@id='user_available']/p[2]/em").text
+    print "mymoney:"+my_moneys
+    my_money = float(str(my_moneys))
+    property["my_money"] = my_money
     loginHandler = driver.current_window_handle
     handler['login'] = loginHandler
 
+
     while True:
-        time.sleep(1000) #10分钟刷新一次
-        # 切换窗口 ，必须切回到登陆页面
-        handles = driver.window_handles  # 获取当前窗口句柄集合（列表类型）
-        for handle in handles:  # 切换窗口（切换到搜狗）
-            if handle == loginHandler:
-                driver.switch_to_window(handle)
-                break
+        time.sleep(600) #10分钟刷新一次
+        # 切换登陆窗口
+        driver.switch_to_window(handler['login'])
         driver.refresh()
+        print  "fresh login page..."
 
 def invest(loanId):
     #投资之前先查查自己有多少钱,切换到登陆页面
     driver.switch_to_window(handler['login'])
-    my_moneys = driver.find_element_by_xpath("//div[@class='i_ac']/a").text.replace('元', '').replace(',', '');
+    #my_moneys = driver.find_element_by_xpath("//div[@class='i_ac']/a").text.replace('元', '').replace(',', '');
+    my_moneys = driver.find_element_by_xpath("//li[@id='user_available']/p[2]/em").text
     my_money = float(str(my_moneys))
+    property["my_money"] = my_money
     # 跳转到投资页面
     invserurl = property["host"] + property["loanDetail"] + "=" +loanId
     invserurl = invserurl.replace('\\', '')
@@ -102,10 +108,10 @@ def invest(loanId):
     inverstedmoney = driver.find_element_by_id("investAmountspan").get_attribute("val")
     investinput_tip = driver.find_element_by_id("investinput_tip").text
     investAmountInput = driver.find_element_by_id("investAmountInput")
-    investmoney = "可投余额：{0}\t\t我的余额：{1}\t\t我的最大投资额度：{2}".decode("utf-8").format(float(inverstedmoney), my_money,
+    investmoney = "可投余额：{0}\t\t我的余额：{1}\t\t我的最大投资额度：{2}".decode("utf-8").format(float(inverstedmoney),  property["my_money"],
                                                                                     int(property["maxInvestMoney"]));
     print investmoney
-    investAmountInput.send_keys(str(int(min(float(inverstedmoney), my_money, int(property["maxInvestMoney"])))))
+    investAmountInput.send_keys(str(int(min(float(inverstedmoney), property["my_money"], int(property["maxInvestMoney"])))))
     driver.find_element_by_id("loanviewsbtn").click()
     time.sleep(0.5)
     driver.find_element_by_id("payPassword_rsainput").send_keys(property["payPassword"])
