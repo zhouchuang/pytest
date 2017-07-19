@@ -3,53 +3,38 @@ import os
 import time
 import sys
 import re
+import getpass
 from socket import socket, AF_INET, SOCK_DGRAM
 import threading
 
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.wait import WebDriverWait
+# from selenium.common.exceptions import NoSuchElementException
+# from selenium.webdriver.common.action_chains import ActionChains
+# from selenium.webdriver.common.by import By
+# from selenium.webdriver.common.keys import Keys
+# from selenium.webdriver.support.wait import WebDriverWait
 
 HOST = '127.0.0.1'
 PORT = 11567
 BUFSIZE = 1024
 ADDR = (HOST, PORT)
-
-
-
-
 chrome_driver = os.path.abspath(r"C:\Python27\chromedriver.exe")
 os.environ["webdriver.chrome.driver"] = chrome_driver
 driver = webdriver.Chrome(chrome_driver)
-
-
-
 property  = {}
-handler = {}
-f = open('C:\Users\zhouchuang\.tools\kaisa.properties')
-db = f.read()
-f.close()
-print db
-for pro in db.split("\n"):
-    if '=' in pro:
-        property[pro.split('=')[0].strip()] =pro.split('=')[1].strip()
-print property
+flushable = True
 
-
-# username = "18607371493"
-# password = "1988204110zc"
-# username = "13597812114"
-# password = "a123456"
-# paypassword="519210"
-# host = "http://localhost:8082/"
-# login_url = "login/logout/"
-# invest_url="loan/loanDetail?loanId="
-# loan_id = "1565479121603878912"
-# my_money=0
-# max_money=10000
+def readProperties():
+    path = "C:\\Users\\" + getpass.getuser() + "\\.tools\\kaisa.properties"
+    print path
+    f = open(path)
+    db = f.read()
+    f.close()
+    print db
+    for pro in db.split("\n"):
+        if '=' in pro:
+            property[pro.split('=')[0].strip()] = pro.split('=')[1].strip()
+    print property
 def openHome():
     driver.get("https://www.kaisafax.com/loan")
 
@@ -73,28 +58,37 @@ def userLogin():
     time.sleep(0.5)
     driver.find_element_by_xpath("//p[@class='i_regbtn']/a").click()
     time.sleep(0.5)
-    my_moneys = driver.find_element_by_xpath("//li[@id='user_available']/p[2]/em").text
+    my_moneys = driver.find_element_by_xpath("//li[@id='user_available']/p[2]/em").text.replace('元','').replace(',','');
     print "mymoney:"+my_moneys
     my_money = float(str(my_moneys))
     property["my_money"] = my_money
-    loginHandler = driver.current_window_handle
-    handler['login'] = loginHandler
+
 
 
     while True:
         time.sleep(600) #10分钟刷新一次
         # 切换登陆窗口
-        driver.switch_to_window(handler['login'])
-        driver.refresh()
-        print  "fresh login page..."
+        if flushable == True:
+            driver.get("https://www.kaisafax.com/account/")
+            time.sleep(0.5)
+            try:
+                my_moneys = driver.find_element_by_xpath("//li[@id='user_available']/p[2]/em").text.replace('元','').replace(',','');
+            except:
+                # 设置登陆账号密码跳转
+                driver.find_element_by_id("userInput").clear()
+                driver.find_element_by_id("userInput").send_keys(property["username"])
+                driver.find_element_by_id("passwordInput").clear()
+                driver.find_element_by_id("passwordInput").send_keys(property["password"])
+                driver.find_element_by_id("loginBtn").click()
+                time.sleep(1)
+                my_moneys = driver.find_element_by_xpath("//li[@id='user_available']/p[2]/em").text.replace('元''').replace( ',', '');
+                pass
+            print "mymoney:" + my_moneys
+            my_money = float(str(my_moneys))
+            property["my_money"] = my_money
+            print  "refresh login page..."
 
 def invest(loanId):
-    #投资之前先查查自己有多少钱,切换到登陆页面
-    driver.switch_to_window(handler['login'])
-    #my_moneys = driver.find_element_by_xpath("//div[@class='i_ac']/a").text.replace('元', '').replace(',', '');
-    my_moneys = driver.find_element_by_xpath("//li[@id='user_available']/p[2]/em").text
-    my_money = float(str(my_moneys))
-    property["my_money"] = my_money
     # 跳转到投资页面
     invserurl = property["host"] + property["loanDetail"] + "=" +loanId
     invserurl = invserurl.replace('\\', '')
@@ -105,17 +99,36 @@ def invest(loanId):
     handles = driver.window_handles  # 获取当前窗口句柄集合（列表类型）
     driver.switch_to_window(handles[-1])
     # 查询还能投多少钱，填充钱
-    inverstedmoney = driver.find_element_by_id("investAmountspan").get_attribute("val")
-    investinput_tip = driver.find_element_by_id("investinput_tip").text
-    investAmountInput = driver.find_element_by_id("investAmountInput")
-    investmoney = "可投余额：{0}\t\t我的余额：{1}\t\t我的最大投资额度：{2}".decode("utf-8").format(float(inverstedmoney),  property["my_money"],
-                                                                                    int(property["maxInvestMoney"]));
-    print investmoney
-    investAmountInput.send_keys(str(int(min(float(inverstedmoney), property["my_money"], int(property["maxInvestMoney"])))))
-    driver.find_element_by_id("loanviewsbtn").click()
-    time.sleep(0.5)
-    driver.find_element_by_id("payPassword_rsainput").send_keys(property["payPassword"])
-    driver.find_element_by_id("transactionPwd_recharge").click()
+    try:
+        inverstedmoney = driver.find_element_by_id("investAmountspan").get_attribute("val")
+        investAmountInput = driver.find_element_by_id("investAmountInput")
+        investmoney = "可投余额：{0}\t\t我的余额：{1}\t\t我的最大投资额度：{2}\t\t我的投资金额：{3}".decode("utf-8").format(float(inverstedmoney),  property["my_money"],
+                                                                                        int(property["maxInvestMoney"]),int(property["investMoney"]));
+        print investmoney
+
+        #如果我的投资金额为0或者没有具体数字，则不必须用固定金额投资
+        if int(property["investMoney"])==0:
+            investAmountInput.send_keys(str(int(min(float(inverstedmoney), property["my_money"], int(property["maxInvestMoney"])))))
+        else:
+            if int(property["investMoney"]) > property["my_money"]:
+                print "我的余额不足，请充值"
+                return
+            else:
+                investAmountInput.send_keys(str(int(min(int(property["investMoney"])))))
+
+        driver.find_element_by_id("loanviewsbtn").click()
+        time.sleep(1)
+        #新交易方式，以后使用
+        # driver.find_element_by_id("payPassword_rsainput").send_keys(property["payPassword"])
+        # driver.find_element_by_id("transactionPwd_recharge").click()
+        driver.find_element_by_class_name("password").send_keys(property["payPassword"])
+        driver.find_element_by_class_name("btn-submit").click()
+
+    except:
+        print "满标了".decode("utf-8")
+        pass
+
+
 
 def userLoginAndInvsert(loanId):
     #登陆页面
@@ -169,8 +182,8 @@ def userLoginAndInvsert(loanId):
     driver.find_element_by_id("transactionPwd_recharge").click()
     time.sleep(0.5)
     #投资完了后刷新登陆页面重新获取我的金额
-    driver.switch_to_window(handler['login'])
-    driver.refresh()
+    # driver.switch_to_window(handler['login'])
+    # driver.refresh()
 
 def receiver():
     udpSerSock = socket(AF_INET, SOCK_DGRAM)
@@ -179,15 +192,14 @@ def receiver():
     while True:
         print 'wating for message...'
         data, addr = udpSerSock.recvfrom(BUFSIZE)
-        #udpSerSock.sendto('[%s] %s' % (time.ctime(), data), addr)
-        #print '...received from and retuned to:', addr
         print data
-        # if data=='close':
-        #     driver.close()
-        #     udpSerSock.close()
-        #     closeHandler()
-        # else:
-        invest(data)
+        if data=="start":
+            flushable = True
+            readProperties()
+        else:
+            flushable = False
+            invest(data)
+        print "flushAble:{0}".decode("utf-8").format(flushable)
     udpSerSock.close()
 
 def closeHandler():
@@ -213,6 +225,7 @@ def closeHandler():
 if __name__ == '__main__':
     reload(sys)
     sys.setdefaultencoding('utf-8')
+    readProperties()
     #启动接收器
     threading.Thread(target=receiver).start()
     userLogin()

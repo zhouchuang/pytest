@@ -1,5 +1,6 @@
 #coding:utf-8
 import threading
+import getpass
 from time import ctime,sleep
 
 
@@ -20,6 +21,8 @@ t2 = threading.Thread(target=move,args=(u'阿凡达',))
 threads.append(t2)
 
 if __name__ == '__main__':
+
+    print getpass.getuser()
     for t in threads:
         t.setDaemon(True)
         t.start()
