@@ -16,8 +16,11 @@ from selenium import webdriver
 
 HOST = '127.0.0.1'
 PORT = 11567
+CLIENT_PORT=11568
 BUFSIZE = 1024
 ADDR = (HOST, PORT)
+udpSerSock = socket(AF_INET, SOCK_DGRAM)
+REMOTE_ADDR  = (HOST, CLIENT_PORT)
 chrome_driver = os.path.abspath(r"C:\Python27\chromedriver.exe")
 os.environ["webdriver.chrome.driver"] = chrome_driver
 driver = webdriver.Chrome(chrome_driver)
@@ -57,7 +60,7 @@ def userLogin():
     submitbt.click()
     time.sleep(0.5)
     driver.find_element_by_xpath("//p[@class='i_regbtn']/a").click()
-    time.sleep(0.5)
+    time.sleep(1)
     my_moneys = driver.find_element_by_xpath("//li[@id='user_available']/p[2]/em").text.replace('元','').replace(',','');
     print "mymoney:"+my_moneys
     my_money = float(str(my_moneys))
@@ -81,7 +84,7 @@ def userLogin():
                 driver.find_element_by_id("passwordInput").send_keys(property["password"])
                 driver.find_element_by_id("loginBtn").click()
                 time.sleep(1)
-                my_moneys = driver.find_element_by_xpath("//li[@id='user_available']/p[2]/em").text.replace('元''').replace( ',', '');
+                my_moneys = driver.find_element_by_xpath("//li[@id='user_available']/p[2]/em").text.replace('元','').replace( ',', '');
                 pass
             print "mymoney:" + my_moneys
             my_money = float(str(my_moneys))
@@ -111,10 +114,10 @@ def invest(loanId):
             investAmountInput.send_keys(str(int(min(float(inverstedmoney), property["my_money"], int(property["maxInvestMoney"])))))
         else:
             if int(property["investMoney"]) > property["my_money"]:
-                print "我的余额不足，请充值"
+                print "我的余额不足，请充值".decode("utf-8")
                 return
             else:
-                investAmountInput.send_keys(str(int(min(int(property["investMoney"])))))
+                investAmountInput.send_keys(str(property["investMoney"]))
 
         driver.find_element_by_id("loanviewsbtn").click()
         time.sleep(1)
@@ -124,8 +127,11 @@ def invest(loanId):
         driver.find_element_by_class_name("password").send_keys(property["payPassword"])
         driver.find_element_by_class_name("btn-submit").click()
 
-    except:
+    except IOError, e:
+        print  e
         print "满标了".decode("utf-8")
+        time.sleep(5)
+        launch("restart")
         pass
 
 
@@ -184,14 +190,16 @@ def userLoginAndInvsert(loanId):
     #投资完了后刷新登陆页面重新获取我的金额
     # driver.switch_to_window(handler['login'])
     # driver.refresh()
-
+def launch(cmd):
+    print  REMOTE_ADDR
+    print  cmd
+    udpSerSock.sendto(cmd,REMOTE_ADDR)
 def receiver():
-    udpSerSock = socket(AF_INET, SOCK_DGRAM)
-    udpSerSock.bind(ADDR)
-    print  "HOST：{0}\t\tPORT：{1}".decode("utf-8").format(HOST, PORT);
+    print  ADDR
     while True:
         print 'wating for message...'
-        data, addr = udpSerSock.recvfrom(BUFSIZE)
+        data,addr = udpSerSock.recvfrom(BUFSIZE)
+        print REMOTE_ADDR
         print data
         if data=="start":
             flushable = True
@@ -200,9 +208,10 @@ def receiver():
             flushable = False
             invest(data)
         print "flushAble:{0}".decode("utf-8").format(flushable)
+def closeUDP():
     udpSerSock.close()
-
 def closeHandler():
+    closeUDP()
     pathstr =  os.path.realpath(sys.argv[0]).split('\\')
     filename = pathstr[-1]
     cmd = "tasklist /fi \""+"imagename eq "+filename+"\"";
@@ -225,9 +234,11 @@ def closeHandler():
 if __name__ == '__main__':
     reload(sys)
     sys.setdefaultencoding('utf-8')
+    udpSerSock.bind(ADDR)
     readProperties()
     #启动接收器
     threading.Thread(target=receiver).start()
     userLogin()
+
 
 
