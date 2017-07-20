@@ -124,9 +124,10 @@ def invest(loanId):
         #新交易方式，以后使用
         # driver.find_element_by_id("payPassword_rsainput").send_keys(property["payPassword"])
         # driver.find_element_by_id("transactionPwd_recharge").click()
-        driver.find_element_by_class_name("password").send_keys(property["payPassword"])
-        driver.find_element_by_class_name("btn-submit").click()
-
+        #driver.find_element_by_name("transPwd").send_keys(property["payPassword"])
+        driver.find_element_by_class_name("form-unit").send_keys(property["payPassword"])
+        #driver.find_element_by_class_name("btn-submit").click()
+        driver.find_element_by_xpath("//div[class='form-content']/div/a").click()
     except IOError, e:
         print  e
         print "满标了".decode("utf-8")
