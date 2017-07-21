@@ -1,3 +1,5 @@
+#coding:utf-8
+
 import tkinter as tk
 
 '''紧耦合'''
@@ -6,7 +8,7 @@ import tkinter as tk
 # 弹窗
 class PopupDialog(tk.Toplevel):
     def __init__(self, parent):
-        super().__init__()
+        super(PopupDialog, self).__init__()
         self.title('设置用户信息')
 
         self.parent = parent  # 显式地保留父窗口
@@ -49,7 +51,7 @@ class PopupDialog(tk.Toplevel):
 # 主窗
 class MyApp(tk.Tk):
     def __init__(self):
-        super().__init__()
+        super(MyApp, self).__init__()
         # self.pack() # 若继承 tk.Frame，此句必须有！！！
         self.title('用户信息')
 
@@ -88,6 +90,19 @@ class MyApp(tk.Tk):
         return
 
 
+class Base(object):
+    a = 123
+    def __init__(self):
+        print 'base'
+
+class A(Base):
+    def __init__(self):
+        print 'a'
+        self.a = 123
+        super(A, self).__init__()
+
 if __name__ == '__main__':
     app = MyApp()
     app.mainloop()
+    a = A()
+    print a.__dict__

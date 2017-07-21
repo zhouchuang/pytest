@@ -8,6 +8,8 @@ import xlwt
 import os
 import sys
 import re
+import kaisaMailDriver
+import allowance27Config
 from tkinter import ttk
 
 borders = xlwt.Borders()
@@ -67,6 +69,11 @@ styleTotalAllBg.borders = borders
 styleTotalAllBg.pattern = badAllBG
 
 chineseM = ['一','二','三','四','五','六','七','八','九','十','十一','十二']
+
+config = {"username":"","password":"","receiver":""}
+
+
+outLook = kaisaMailDriver.OutLook()
 
 
 def importFile():
@@ -280,9 +287,31 @@ def exportTotalFile(event):
     msg.insert(2.0, totalmsg)
     event.widget.config(state="normal")
 
-
+def setMail():
+    mail.update()
+    mail.deiconify()
+def setAccount():
+    print "set　Account "
+def about():
+    print "about"
+def quitSys():
+    print "quitSys"
 def setCommon(event):
     choise.pack_forget()
+
+    menubar = tk.Menu(win)
+    filemenu = tk.Menu(menubar, tearoff=0)
+    filemenu.add_command(label="邮箱设置", command=setMail)
+    filemenu.add_command(label="账号设置", command=setAccount)
+    menubar.add_cascade(label="设置", menu=filemenu)
+
+    helpmenu = tk.Menu(menubar, tearoff=0)
+    helpmenu.add_command(label="关于", command=about)
+    helpmenu.add_command(label="退出", command=quitSys)
+    menubar.add_cascade(label="帮助", menu=helpmenu)
+
+    win.config(menu=menubar)
+
     ttk.Label(win, text="文件路径").grid(column=0, row=0)
     ttk.Entry(win, width=50, textvariable=pathtext, state='readonly').grid(column=1, row=0)
     ttk.Button(win, text="导入考勤文件", command=importFile).grid(column=2, row=0)
@@ -303,8 +332,12 @@ def setAdmin(event):
     ttk.Button(win, text="导入考勤文件", command=importFile).grid(column=2, row=0)
     msg.insert(1.0, "1:导入考勤文件\r\n2:点击生成汇总按钮\r\n\r\n加班补助汇总文件会生成在程序当前目录下");
     msg.grid(column=0, row=2, columnspan=3)  # columnspan 个人理解是将3列合并成一列   也可以通过 sticky=tk.W  来控制该文本框的对齐方式
+    msg.config(height=23)
     action.grid(column=1, row=3)  # 设置其在界面中出现的位置  column代表列   row 代表行
     action.bind("<Button-1>", exportTotalFile)
+def savemail():
+    config["receiver"]=receiver.get()
+    mail.withdraw()
 
 def closeHandler():
     pathstr =  os.path.realpath(sys.argv[0]).split('\\')
@@ -361,7 +394,18 @@ if __name__ == '__main__':
     pathtext = tk.StringVar()
     numberChosen = ttk.Combobox(win, width=63, textvariable=tk.StringVar(), state='readonly')
     action = ttk.Button(win, text="生成")  # 创建一个按钮, text：显示按钮上面显示的文字, command：当这个按钮被点击之后会调用command函数
-    msg = tk.Text(win, height=20)
+    msg = tk.Text(win, height=22)
+
+    # 配置弹出框
+    mail = tk.Toplevel()
+    mail.title("邮箱设置")
+    mail.withdraw()
+    mail.attributes('-toolwindow', True)
+    mail.geometry('%dx%d+%d+%d' % (500, 200, (ws/2)-250,hs/2-100))
+    tk.Label(mail, text='统计人员邮箱').grid(column=0, row=0)
+    receiver = tk.StringVar()
+    ttk.Entry(mail, width=50,textvariable =receiver).grid(column=1, row=0)
+    ttk.Button(mail,text="保存",command=savemail).grid(column=1, row=1)
 
 
     choise = tk.Frame(win)
@@ -374,6 +418,6 @@ if __name__ == '__main__':
     admin.bind("<Button-1>", setAdmin);
     message = tk.Label(choise,text="Copyright ©深圳深信金融服务有限公司\r\n佳兆业金服 研发 周创\r\n版本号：v1.0",fg='orange').grid(rows=3,column=1,pady=20)
 
+    #outLook.send('635659050@qq.com','hello','hello world')
     win.mainloop()
-
 

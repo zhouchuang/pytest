@@ -21,11 +21,31 @@ BUFSIZE = 1024
 ADDR = (HOST, PORT)
 udpSerSock = socket(AF_INET, SOCK_DGRAM)
 REMOTE_ADDR  = (HOST, CLIENT_PORT)
+# chrome_driver = os.path.abspath(r"C:\Python27\chromedriver.exe")
+# os.environ["webdriver.chrome.driver"] = chrome_driver
+# driver = webdriver.Chrome(chrome_driver)
+property  = {}
+
+flushable = True
+
+path = "C:\\Users\\" + getpass.getuser() + "\\.tools\\kaisa.properties"
+print path
+f = open(path)
+db = f.read()
+f.close()
+print db
+for pro in db.split("\n"):
+    if '=' in pro:
+        property[pro.split('=')[0].strip()] = pro.split('=')[1].strip()
+print property
+
+
+driverpath = str(property["driverPath"]).replace("\:", ":").replace("\\\\", "\\")
+print driverpath
 chrome_driver = os.path.abspath(r"C:\Python27\chromedriver.exe")
 os.environ["webdriver.chrome.driver"] = chrome_driver
 driver = webdriver.Chrome(chrome_driver)
-property  = {}
-flushable = True
+
 
 def readProperties():
     path = "C:\\Users\\" + getpass.getuser() + "\\.tools\\kaisa.properties"
@@ -46,6 +66,7 @@ def investPage():
     driver.execute_script(js)
 
 def userLogin():
+    global flushable
     loginurl = property["host"] + property["loginUrl"]
     loginurl = loginurl.replace('\\', '')
     print  loginurl
@@ -69,7 +90,7 @@ def userLogin():
 
 
     while True:
-        time.sleep(600) #10分钟刷新一次
+        time.sleep(1800) #30分钟刷新一次
         # 切换登陆窗口
         if flushable == True:
             driver.get("https://www.kaisafax.com/account/")
@@ -105,30 +126,34 @@ def invest(loanId):
     try:
         inverstedmoney = driver.find_element_by_id("investAmountspan").get_attribute("val")
         investAmountInput = driver.find_element_by_id("investAmountInput")
-        investmoney = "可投余额：{0}\t\t我的余额：{1}\t\t我的最大投资额度：{2}\t\t我的投资金额：{3}".decode("utf-8").format(float(inverstedmoney),  property["my_money"],
-                                                                                        int(property["maxInvestMoney"]),int(property["investMoney"]));
+        investmoney = "可投余额：{0}\t\t我的余额：{1}\t\t我的最大投资额度：{2}\t\t我的投资金额：{3}".decode("utf-8").format(float(inverstedmoney),  property["my_money"], int(property["maxInvestMoney"]),int(property["investMoney"]));
         print investmoney
-
-        #如果我的投资金额为0或者没有具体数字，则不必须用固定金额投资
+        #如果我的投资金额为0或者没有具体数字，则不必须用固定金额投资int(4040.00/100)*100
+        print int(property["investMoney"])
+        print float(property["investMoney"])
+        print property["my_money"]
         if int(property["investMoney"])==0:
-            investAmountInput.send_keys(str(int(min(float(inverstedmoney), property["my_money"], int(property["maxInvestMoney"])))))
+            final_money = int(min(float(inverstedmoney), int(property["my_money"]/100)*100, int(property["maxInvestMoney"])))
+            if final_money==0:
+                print "投资金额不能为0".decode("utf-8")
+                return
+            else:
+                investAmountInput.send_keys(str(final_money))
         else:
-            if int(property["investMoney"]) > property["my_money"]:
+            if float(property["investMoney"]) > property["my_money"] or property["my_money"] <100:
                 print "我的余额不足，请充值".decode("utf-8")
                 return
             else:
-                investAmountInput.send_keys(str(property["investMoney"]))
+                investAmountInput.send_keys(str(int(property["investMoney"])/100*100))
 
         driver.find_element_by_id("loanviewsbtn").click()
-        time.sleep(1)
+        time.sleep(2)
         #新交易方式，以后使用
         # driver.find_element_by_id("payPassword_rsainput").send_keys(property["payPassword"])
         # driver.find_element_by_id("transactionPwd_recharge").click()
-        #driver.find_element_by_name("transPwd").send_keys(property["payPassword"])
         driver.find_element_by_class_name("form-unit").send_keys(property["payPassword"])
-        #driver.find_element_by_class_name("btn-submit").click()
-        driver.find_element_by_xpath("//div[class='form-content']/div/a").click()
-    except IOError, e:
+        driver.find_element_by_xpath("//div[@class='form-content']/div/a").click()
+    except Exception,e:
         print  e
         print "满标了".decode("utf-8")
         time.sleep(5)
@@ -196,6 +221,7 @@ def launch(cmd):
     print  cmd
     udpSerSock.sendto(cmd,REMOTE_ADDR)
 def receiver():
+    global flushable
     print  ADDR
     while True:
         print 'wating for message...'
@@ -231,12 +257,24 @@ def closeHandler():
         except Exception, e:
             print e.message
     sys.exit()
-
+def openBrowser():
+    try:
+        driverpath = str(property["driverPath"]).replace("\:",":").replace("\\\\","\\")
+        print driverpath
+        chrome_driver = os.path.abspath(r"C:\Python27\chromedriver.exe")
+        os.environ["webdriver.chrome.driver"] = chrome_driver
+        driver = webdriver.Chrome(chrome_driver)
+        print driver
+    except IOError, e:
+        print  e
+        print "驱动路径错误，请重新配置路径".decode("utf-8")
+        pass
 if __name__ == '__main__':
     reload(sys)
     sys.setdefaultencoding('utf-8')
     udpSerSock.bind(ADDR)
-    readProperties()
+    # readProperties()
+    # openBrowser()
     #启动接收器
     threading.Thread(target=receiver).start()
     userLogin()
