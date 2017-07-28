@@ -72,7 +72,7 @@ styleTotalAllBg.pattern = badAllBG
 
 chineseM = ['一','二','三','四','五','六','七','八','九','十','十一','十二']
 
-config = {"username":"","password":"","receiver":"","autoMail":'False',"autoOA":'False'}
+config = {"username":"","password":"","receiver":"","autoMail":'False',"autoOA":'False',"appid":"42965","secret":"2146bebb858743a0863618e59005342c","url":"http://route.showapi.com/99-38"}
 
 outLook = kaisaMailDriver.OutLook()
 
@@ -312,9 +312,14 @@ def resetButton(event):
     action.config(state="normal")
 def closeMailHandler():
     mail.withdraw()
+def closeApiHandler():
+    showapi.withdraw()
 def setMail():
     mail.update()
     mail.deiconify()
+def setApi():
+    showapi.update()
+    showapi.deiconify()
 def setAccount():
     win32api.MessageBox(0, '待开发'.decode('utf-8'), '提示'.decode('utf-8'), win32con.MB_OK)
 def about():
@@ -328,6 +333,7 @@ def setCommon(event):
     menubar = tk.Menu(win)
     filemenu = tk.Menu(menubar, tearoff=0)
     filemenu.add_command(label="邮箱设置", command=setMail)
+    filemenu.add_command(label="接口设置", command=setApi)
     filemenu.add_command(label="账号设置", command=setAccount)
     menubar.add_cascade(label="设置", menu=filemenu)
 
@@ -369,6 +375,12 @@ def savemail():
     else:
         config["autoMail"] = 'True'
     mail.withdraw()
+    updateConfig()
+def saveapi():
+    config["appid"]=appid.get()
+    config["secret"] = secret.get()
+    config["url"]= url.get()
+    showapi.withdraw()
     updateConfig()
 
 def closeHandler():
@@ -427,17 +439,18 @@ def getCurrentChineseName(namelist):
     for name in namelist:
         names += name+":"
     names = names[0:len(names)-1]
-    appid = "42965"
-    sign = '2146bebb858743a0863618e59005342c'
-    url = "http://route.showapi.com/99-38?showapi_appid=${appid}&content=${content}&showapi_sign=${sign}"
-    url = url.replace("${appid}", appid).replace("${sign}", sign).replace("${content}", names)
-    req = urllib2.Request(url)
+    # appid = "42965"
+    # sign = '2146bebb858743a0863618e59005342c'
+    apiurl = "${url}?showapi_appid=${appid}&content=${content}&showapi_sign=${sign}"
+    apiurl = apiurl.replace("${url}",config["url"]).replace("${appid}", config["appid"]).replace("${sign}",config["secret"]).replace("${content}", names)
+    req = urllib2.Request(apiurl)
     res_data = urllib2.urlopen(req)
     res = res_data.read()
     json_res = json.loads(res)
     try:
         pinyins = (json_res["showapi_res_body"]["data"]).replace(" ", "").split(":")
     except:
+        win32api.MessageBox(0, '拼音接口参数有误'.decode('utf-8'), '错误'.decode('utf-8'), win32con.MB_OK)
         return ""
     currentNamePinyin = getpass.getuser()
     for i in range(0,len(pinyins)):
@@ -492,6 +505,7 @@ if __name__ == '__main__':
     msg = tk.Text(win, height=22)
 
     # 配置弹出框
+    #邮箱设置
     mail = tk.Toplevel()
     mail.title("邮箱设置")
     mail.withdraw()
@@ -508,6 +522,32 @@ if __name__ == '__main__':
     ttk.Radiobutton(mail, text="关闭", variable=autoMailValue,  value=0).grid(column=1, row=2,sticky='w')
     ttk.Button(mail,text="保存",command=savemail).grid(column=1, row=3)
     mail.protocol("WM_DELETE_WINDOW", closeMailHandler)
+
+    #接口设置
+    showapi = tk.Toplevel()
+    showapi.title("拼音接口设置")
+    showapi.withdraw()
+    showapi.attributes('-toolwindow', True)
+    showapi.geometry('%dx%d+%d+%d' % (500, 200, (ws / 2) - 250, hs / 2 - 100))
+
+    tk.Label(showapi, text='url').grid(column=0, row=0)
+    url = tk.StringVar()
+    url.set(config["url"])
+    ttk.Entry(showapi, width=50, textvariable=url).grid(column=1, row=0)
+
+    tk.Label(showapi, text='appid').grid(column=0, row=1)
+    appid = tk.StringVar()
+    appid.set(config["appid"])
+    ttk.Entry(showapi, width=50, textvariable=appid).grid(column=1, row=1)
+
+    tk.Label(showapi, text='secret').grid(column=0, row=2)
+    secret = tk.StringVar()
+    secret.set(config["secret"])
+    ttk.Entry(showapi, width=50, textvariable=secret).grid(column=1, row=2)
+
+    ttk.Label(showapi,text='该接口使用时间为1年，1年后需要重新订阅').grid(column=1,row=3)
+    ttk.Button(showapi, text="保存", command=saveapi).grid(column=1, row=4)
+    showapi.protocol("WM_DELETE_WINDOW", closeApiHandler)
 
 
 
