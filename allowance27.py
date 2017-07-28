@@ -9,7 +9,9 @@ import os
 import sys
 import re
 import kaisaMailDriver
-import allowance27Config
+import urllib2
+import json
+import getpass
 from tkinter import ttk
 
 borders = xlwt.Borders()
@@ -70,8 +72,7 @@ styleTotalAllBg.pattern = badAllBG
 
 chineseM = ['一','二','三','四','五','六','七','八','九','十','十一','十二']
 
-config = {"username":"","password":"","receiver":""}
-
+config = {"username":"","password":"","receiver":"","autoMail":'False',"autoOA":'False'}
 
 outLook = kaisaMailDriver.OutLook()
 
@@ -101,8 +102,16 @@ def importFile():
                         names.add(row[i])
                 datalist.append(app)
         for name in names:
-            namelist.append(name)
-        numberChosen['values'] = namelist;
+            namelist.append(name.strip())
+        if len(namelist):
+            numberChosen['values'] = namelist;
+            currpinyinname = getCurrentChineseName(namelist)
+            numberChosen.set(currpinyinname or namelist[0])
+        else:
+            win32api.MessageBox(0, '请导入正确的考勤文件'.decode('utf-8'), '警告'.decode('utf-8'), win32con.MB_OK)
+
+
+
 
 def exportFile(event):
     if len(datalist) == 0:
@@ -112,6 +121,7 @@ def exportFile(event):
     selectname = numberChosen.get()
     if selectname == '请选择':
         win32api.MessageBox(0, '请选择员工名称'.decode('utf-8'), '警告'.decode('utf-8'), win32con.MB_OK)
+        event.widget.config(state="normal")
     else:
         del datatime[:]
         del datauser[:]
@@ -132,9 +142,9 @@ def exportFile(event):
         datatime.append(total)
 
         pathstr = os.path.realpath(sys.argv[0]).split('\\')
-        filename = '加班餐费统计（' + selectname + '）.xls'
-        # if os.path.exists(filename):
-        #     os.remove(filename)
+        exportfilename = '加班餐费统计（' + selectname + '）.xls'
+        # if os.path.exists(exportfilename):
+        #     os.remove(exportfilename)
         wbk = xlwt.Workbook(encoding='utf-8')
         sheet = wbk.add_sheet('加班餐费统计（' + selectname + "）", cell_overwrite_ok=True)
         for i in range(0, len(titlelist)):
@@ -158,7 +168,7 @@ def exportFile(event):
                             value = '正常'
                     sheet.write((i + 1), j, value, colstyle)
 
-        wbk.save(filename)
+        wbk.save(exportfilename)
         msg.delete(0.0, 100.0)
         index = 1.0
         msg.insert(index, '----未打卡----\n\r')
@@ -192,7 +202,19 @@ def exportFile(event):
                 msg.insert(index,
                            entity['日期'.decode('utf-8')] + '\t\t' + entity['周期'.decode('utf-8')] + '\t\t' + entity['上班时间'.decode('utf-8')] + '\t\t' + entity[
                                '下班时间'.decode('utf-8')] + '\n\r')
-    event.widget.config(state="normal")
+
+        #发送邮件
+        if (config['receiver']) and  config["autoMail"]=='True':
+            index += 1
+            msg.insert(index, "----邮件发送----\n\r")
+            date = datauser[0]['日期'.decode('utf-8')]
+            filename = chineseM[int(date[5:7]) - 1]
+            outLook.send(config['receiver'], "加班餐费统计",os.path.realpath(sys.argv[0])[0:os.path.realpath(sys.argv[0]).rfind("\\")+1]+exportfilename ,chineseM[int(date[5:7]) - 1]+"月份加班餐费统计")
+            index += 1
+            msg.insert(index,"邮件已经发送到用户‘"+config["receiver"]+"’，邮件发送成功")
+
+    # win32api.MessageBox(0, '处理成功'.decode('utf-8'), '提示'.decode('utf-8'), win32con.MB_OK)
+    # event.widget.config(state="normal")
 
 def exportTotalFile(event):
     event.widget.config(state="disabled")
@@ -286,16 +308,20 @@ def exportTotalFile(event):
     totalmsg = "人数：{0}\t\t加班次数：{1}\t\t餐补费用：{2}".format(len(totallist),totalNum,totalNum*20);
     msg.insert(2.0, totalmsg)
     event.widget.config(state="normal")
-
+def resetButton(event):
+    action.config(state="normal")
+def closeMailHandler():
+    mail.withdraw()
 def setMail():
     mail.update()
     mail.deiconify()
 def setAccount():
-    print "set　Account "
+    win32api.MessageBox(0, '待开发'.decode('utf-8'), '提示'.decode('utf-8'), win32con.MB_OK)
 def about():
-    print "about"
+    win32api.MessageBox(0, '----------------------------------------V2.0----------------------------------------\n\r新增功能\n\r1:自动选择用户姓名\n\r程序会根据当前系统登录人作为用户名称（因为登陆名为姓名的拼音，所以需要在联网情况下才能正常访问汉字转拼音接口），省去了手动选择用户姓名操作\n\r\n\r'
+                           '2:自动发送邮件\n\r如果你在 ‘设置>邮箱设置’ 中配置好了收件人邮箱（比如佳兆业金服统计人员邮箱为‘lvxm@kaisagroup.com’）并且启动了自动发送邮件，则程序会在生成餐补文件后自动发送给统计人员'.decode('utf-8'), '关于'.decode('utf-8'), win32con.MB_OK)
 def quitSys():
-    print "quitSys"
+    closeHandler()
 def setCommon(event):
     choise.pack_forget()
 
@@ -319,6 +345,7 @@ def setCommon(event):
     numberChosen['values'] = ('请选择')  # 设置下拉列表的值
     numberChosen.grid(column=1, row=1, columnspan=2)  # 设置其在界面中出现的位置  column代表列   row 代表行
     numberChosen.current(0)  # 设置下拉列表默认显示的值，0为 numberChosen['values'] 的下标值
+    numberChosen.bind("<<ComboboxSelected>>", resetButton)
     msg.insert(1.0, "1:导入考勤文件\r\n2:选择员工姓名\r\n3:点击生成按钮\r\n\r\n加班补助文件会生成在程序当前目录下，控制台会打印相应考勤异常信息");
     msg.grid(column=0, row=3, columnspan=3)  # columnspan 个人理解是将3列合并成一列   也可以通过 sticky=tk.W  来控制该文本框的对齐方式
     action.grid(column=1, row=4)  # 设置其在界面中出现的位置  column代表列   row 代表行
@@ -337,7 +364,12 @@ def setAdmin(event):
     action.bind("<Button-1>", exportTotalFile)
 def savemail():
     config["receiver"]=receiver.get()
+    if autoMailValue.get()==0:
+        config["autoMail"] = 'False'
+    else:
+        config["autoMail"] = 'True'
     mail.withdraw()
+    updateConfig()
 
 def closeHandler():
     pathstr =  os.path.realpath(sys.argv[0]).split('\\')
@@ -365,11 +397,74 @@ def closeHandler():
             print e.message
     win.destroy()
     sys.exit()
+def initConfigFile():
+    path = "C:\\Users\\" + getpass.getuser() + "\\.tools"
+    if not os.path.exists(path):
+        os.mkdir(path)
+    #如果存在，则读取配置文件
+    file = path+"\\allowance.properties"
+    if  os.path.exists(file):
+        pro = open(file)
+        db = pro.read()
+        pro.close()
+        for pro in db.split("\n"):
+            if '=' in pro:
+                config[pro.split('=')[0].strip()] = pro.split('=')[1].strip()
+
+def updateConfig():
+    profile = "C:\\Users\\" + getpass.getuser() + "\\.tools" + "\\allowance.properties"
+    file_object = open(profile, 'w')
+    list_of_text_strings  = ""
+    for key in config:
+        list_of_text_strings += (key+"="+str(config[key])+"\n")
+    file_object.writelines(list_of_text_strings)
+    file_object.close()
+
+
+def getCurrentChineseName(namelist):
+
+    names = ""
+    for name in namelist:
+        names += name+":"
+    names = names[0:len(names)-1]
+    appid = "42965"
+    sign = '2146bebb858743a0863618e59005342c'
+    url = "http://route.showapi.com/99-38?showapi_appid=${appid}&content=${content}&showapi_sign=${sign}"
+    url = url.replace("${appid}", appid).replace("${sign}", sign).replace("${content}", names)
+    req = urllib2.Request(url)
+    res_data = urllib2.urlopen(req)
+    res = res_data.read()
+    json_res = json.loads(res)
+    try:
+        pinyins = (json_res["showapi_res_body"]["data"]).replace(" ", "").split(":")
+    except:
+        return ""
+    currentNamePinyin = getpass.getuser()
+    for i in range(0,len(pinyins)):
+        name = pinyins[i]
+        if name  == currentNamePinyin:
+            return namelist[i]
+    return ""
+
+    # p = Pinyin()
+    # currentNamePinyin = getpass.getuser()
+    # for name in namelist:
+    #     #decodename = unicode(name,'utf-8')
+    #     decodename = name.decode("utf-8")
+    #     if currentNamePinyin == p.get_pinyin(decodename).replace("-",""):
+    #         return name
+    # return ""
+
+    # currentNamePinyin = getpass.getuser()
+    # for name in namelist:
+    #     if currentNamePinyin == ''.join(lazy_pinyin(name.decode("utf-8"))):
+    #         return name
 
 if __name__ == '__main__':
 
     reload(sys)
     sys.setdefaultencoding('utf-8')
+    initConfigFile()
     datalist = []
     datauser = []
     datatime = []
@@ -384,7 +479,7 @@ if __name__ == '__main__':
     win.protocol("WM_DELETE_WINDOW", closeHandler)
     w = 565
     h = 365
-    win.title("餐补生成工具")  # 添加标题
+    win.title("餐补生成工具")
     ws = win.winfo_screenwidth()
     hs = win.winfo_screenheight()
     x = (ws / 2) - (w / 2)
@@ -404,8 +499,16 @@ if __name__ == '__main__':
     mail.geometry('%dx%d+%d+%d' % (500, 200, (ws/2)-250,hs/2-100))
     tk.Label(mail, text='统计人员邮箱').grid(column=0, row=0)
     receiver = tk.StringVar()
+    receiver.set(config["receiver"])
     ttk.Entry(mail, width=50,textvariable =receiver).grid(column=1, row=0)
-    ttk.Button(mail,text="保存",command=savemail).grid(column=1, row=1)
+    autoMailValue = tk.IntVar()
+    autoMailValue.set(1 if str(config["autoMail"]) == "True" else 0)
+    tk.Label(mail, text='自动发送邮件').grid(column=0, row=1)
+    ttk.Radiobutton(mail, text="启动", variable=autoMailValue,  value=1).grid(column=1, row=1,sticky='w')
+    ttk.Radiobutton(mail, text="关闭", variable=autoMailValue,  value=0).grid(column=1, row=2,sticky='w')
+    ttk.Button(mail,text="保存",command=savemail).grid(column=1, row=3)
+    mail.protocol("WM_DELETE_WINDOW", closeMailHandler)
+
 
 
     choise = tk.Frame(win)
@@ -416,7 +519,7 @@ if __name__ == '__main__':
     admin.grid(rows=2, column=1, padx=165, pady=0)
     common.bind("<Button-1>", setCommon);
     admin.bind("<Button-1>", setAdmin);
-    message = tk.Label(choise,text="Copyright ©深圳深信金融服务有限公司\r\n佳兆业金服 研发 周创\r\n版本号：v1.0",fg='orange').grid(rows=3,column=1,pady=20)
+    message = tk.Label(choise,text="Copyright ©深圳深信金融服务有限公司\r\n佳兆业金服 研发 周创\r\n版本号：v2.0",fg='orange').grid(rows=3,column=1,pady=20)
 
     #outLook.send('635659050@qq.com','hello','hello world')
     win.mainloop()

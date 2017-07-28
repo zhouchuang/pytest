@@ -90,7 +90,7 @@ def userLogin():
 
 
     while True:
-        time.sleep(1800) #30分钟刷新一次
+        time.sleep(600) #30分钟刷新一次
         # 切换登陆窗口
         if flushable == True:
             driver.get("https://www.kaisafax.com/account/")

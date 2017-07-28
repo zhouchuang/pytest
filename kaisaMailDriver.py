@@ -7,7 +7,7 @@ class OutLook():
     def __init__(self):
         self.app = 'Outlook'
 
-    def send(self,receiver,title,context):
+    def send(self,receiver,title,file,context):
 
         olook = win32.gencache.EnsureDispatch("%s.Application" % self.app)
         mail=olook.CreateItem(win32.constants.olMailItem)
@@ -15,6 +15,7 @@ class OutLook():
         subj = mail.Subject = title.decode("utf-8")
         body = context.decode("utf-8")
         mail.Body = body
+        mail.Attachments.Add(file.decode("utf-8"))
         mail.Send()
 
 class foxMail():
