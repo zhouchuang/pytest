@@ -12,6 +12,8 @@ import kaisaMailDriver
 import urllib2
 import json
 import getpass
+import kaisaIEDriver
+import threading
 from tkinter import ttk
 
 borders = xlwt.Borders()
@@ -72,7 +74,7 @@ styleTotalAllBg.pattern = badAllBG
 
 chineseM = ['一','二','三','四','五','六','七','八','九','十','十一','十二']
 
-config = {"username":"","password":"","receiver":"","autoMail":'False',"autoOA":'False',"appid":"42965","secret":"2146bebb858743a0863618e59005342c","url":"http://route.showapi.com/99-38"}
+config = {"username":"zhouchuang","password":"1988204110zc@jzy.com","url":"http://192.168.1.82/Portal/index.aspx","receiver":"","autoMail":'False',"autoOA":'False',"name":"","driverPath":"C:\Users\zhouchuang\Desktop\IEDriverServer.exe","auditor":"陈小龙"}
 
 outLook = kaisaMailDriver.OutLook()
 
@@ -105,7 +107,12 @@ def importFile():
             namelist.append(name.strip())
         if len(namelist):
             numberChosen['values'] = namelist;
-            currpinyinname = getCurrentChineseName(namelist)
+            if not config["name"]:
+                currpinyinname = getCurrentChineseName(namelist)
+                config["name"]  = currpinyinname
+                updateConfig()
+            else:
+                currpinyinname = config["name"]
             numberChosen.set(currpinyinname or namelist[0])
         else:
             win32api.MessageBox(0, '请导入正确的考勤文件'.decode('utf-8'), '警告'.decode('utf-8'), win32con.MB_OK)
@@ -172,12 +179,13 @@ def exportFile(event):
         msg.delete(0.0, 100.0)
         index = 1.0
         msg.insert(index, '----未打卡----\n\r')
+        forgetSign = []
         for entity in datauser:
             if ((entity['上班情况'.decode('utf-8')] == '未打卡' or entity['下班情况'.decode('utf-8')] == '未打卡') and entity['上班情况'.decode('utf-8')] != entity['下班情况'.decode('utf-8')]):
                 index += 1
-                str = entity['上班情况'.decode('utf-8')] == '未打卡' and '\t\t上班未打卡' or '\t\t下班未打卡'
-                msg.insert(index, entity['日期'.decode('utf-8')] + '\t\t' + entity['周期'.decode('utf-8')] + str + '\t\t忘记打卡\n\r')
-
+                str = entity['上班情况'.decode('utf-8')] == '未打卡' and '上班未打卡' or '下班未打卡'
+                msg.insert(index, entity['日期'.decode('utf-8')] + '\t\t' + entity['周期'.decode('utf-8')] + '\t\t'+str + '\t\t忘记打卡\n\r')
+                forgetSign.append({"date":entity['日期'.decode('utf-8')],"day":entity['周期'.decode('utf-8')],"status":str.decode("utf-8")})
         index += 1
         msg.insert(index, '----迟到----\n\r')
         for entity in datauser:
@@ -202,19 +210,58 @@ def exportFile(event):
                 msg.insert(index,
                            entity['日期'.decode('utf-8')] + '\t\t' + entity['周期'.decode('utf-8')] + '\t\t' + entity['上班时间'.decode('utf-8')] + '\t\t' + entity[
                                '下班时间'.decode('utf-8')] + '\n\r')
-
+        date = datauser[0]['日期'.decode('utf-8')]
         #发送邮件
         if (config['receiver']) and  config["autoMail"]=='True':
             index += 1
             msg.insert(index, "----邮件发送----\n\r")
-            date = datauser[0]['日期'.decode('utf-8')]
+            #date = datauser[0]['日期'.decode('utf-8')]
             filename = chineseM[int(date[5:7]) - 1]
             outLook.send(config['receiver'], "加班餐费统计",os.path.realpath(sys.argv[0])[0:os.path.realpath(sys.argv[0]).rfind("\\")+1]+exportfilename ,chineseM[int(date[5:7]) - 1]+"月份加班餐费统计")
             index += 1
             msg.insert(index,"邮件已经发送到用户‘"+config["receiver"]+"’，邮件发送成功")
 
+        #if(config['autoOA'])=='True'
+        index += 1
+        msg.insert(index, "----启动IE填写考勤异常信息----\n\r")
+        threading.Thread(target=startOA,args=(index,int(date[0:4]),int(date[5:7]),forgetSign,config["auditor"],)).start()
+
     # win32api.MessageBox(0, '处理成功'.decode('utf-8'), '提示'.decode('utf-8'), win32con.MB_OK)
     # event.widget.config(state="normal")
+def startOA(index,year,month,forgetSign,auditor):
+    kaisaIEDriver.step_00_closeHandler("IEDriverServer.exe")
+    index += 1
+    status = kaisaIEDriver.step_01_loadIEDriver(config["driverPath"])
+    msg.insert(index,status + "\n\r")
+    if "失败" in status: return
+    index += 1
+    status = kaisaIEDriver.step_02_login(config["username"], config["password"], config["url"])
+    msg.insert(index, status+ "\n\r")
+    if "失败" in status: return
+    index += 1
+    status = kaisaIEDriver.step_03_locationFlowPage()
+    msg.insert(index,status+ "\n\r")
+    if "失败" in status: return
+    index += 1
+    status = kaisaIEDriver.step_04_getSessionID()
+    msg.insert(index, status + "\n\r")
+    if "失败" in status: return
+    index += 1
+    status = kaisaIEDriver.step_05_locationAllowancePage()
+    msg.insert(index,  status+ "\n\r")
+    if "失败" in status: return
+    index += 1
+    status = kaisaIEDriver.step_06_createAllowanceException()
+    msg.insert(index,status+"\n\r")
+    if "失败" in status: return
+    index += 1
+    status  = kaisaIEDriver.step_07_completeTable(year,month,forgetSign)
+    msg.insert(index,status+"\n\r")
+    if "失败" in status:return
+    index += 1
+    status = kaisaIEDriver.step_08_selectAuditor(auditor)
+    msg.insert(index,status+"\n\r")
+
 
 def exportTotalFile(event):
     event.widget.config(state="disabled")
@@ -314,14 +361,17 @@ def closeMailHandler():
     mail.withdraw()
 def closeApiHandler():
     showapi.withdraw()
+def closeAccountHandler():
+    account.withdraw()
 def setMail():
     mail.update()
     mail.deiconify()
-def setApi():
-    showapi.update()
-    showapi.deiconify()
+# def setApi():
+#     showapi.update()
+#     showapi.deiconify()
 def setAccount():
-    win32api.MessageBox(0, '待开发'.decode('utf-8'), '提示'.decode('utf-8'), win32con.MB_OK)
+    account.update()
+    account.deiconify()
 def about():
     win32api.MessageBox(0, '----------------------------------------V2.0----------------------------------------\n\r新增功能\n\r1:自动选择用户姓名\n\r程序会根据当前系统登录人作为用户名称（因为登陆名为姓名的拼音，所以需要在联网情况下才能正常访问汉字转拼音接口），省去了手动选择用户姓名操作\n\r\n\r'
                            '2:自动发送邮件\n\r如果你在 ‘设置>邮箱设置’ 中配置好了收件人邮箱（比如佳兆业金服统计人员邮箱为‘lvxm@kaisagroup.com’）并且启动了自动发送邮件，则程序会在生成餐补文件后自动发送给统计人员'.decode('utf-8'), '关于'.decode('utf-8'), win32con.MB_OK)
@@ -333,8 +383,8 @@ def setCommon(event):
     menubar = tk.Menu(win)
     filemenu = tk.Menu(menubar, tearoff=0)
     filemenu.add_command(label="邮箱设置", command=setMail)
-    filemenu.add_command(label="接口设置", command=setApi)
-    filemenu.add_command(label="账号设置", command=setAccount)
+    #filemenu.add_command(label="接口设置", command=setApi)
+    filemenu.add_command(label="OA设置", command=setAccount)
     menubar.add_cascade(label="设置", menu=filemenu)
 
     helpmenu = tk.Menu(menubar, tearoff=0)
@@ -376,13 +426,18 @@ def savemail():
         config["autoMail"] = 'True'
     mail.withdraw()
     updateConfig()
-def saveapi():
-    config["appid"]=appid.get()
-    config["secret"] = secret.get()
-    config["url"]= url.get()
-    showapi.withdraw()
+# def saveapi():
+#     config["appid"]=appid.get()
+#     config["secret"] = secret.get()
+#     config["url"]= url.get()
+#     showapi.withdraw()
+#     updateConfig()
+def saveOA():
+    config["driverPath"] = driverPath.get()
+    config["username"] = username.get()
+    config["password"] = password.get()
+    config["auditor"] = auditor.get()
     updateConfig()
-
 def closeHandler():
     pathstr =  os.path.realpath(sys.argv[0]).split('\\')
     filename = pathstr[-1]
@@ -434,7 +489,9 @@ def updateConfig():
 
 
 def getCurrentChineseName(namelist):
-
+    url = "http://route.showapi.com/99-38"
+    appid = "42965"
+    secret = "2146bebb858743a0863618e59005342c"
     names = ""
     for name in namelist:
         names += name+":"
@@ -442,7 +499,7 @@ def getCurrentChineseName(namelist):
     # appid = "42965"
     # sign = '2146bebb858743a0863618e59005342c'
     apiurl = "${url}?showapi_appid=${appid}&content=${content}&showapi_sign=${sign}"
-    apiurl = apiurl.replace("${url}",config["url"]).replace("${appid}", config["appid"]).replace("${sign}",config["secret"]).replace("${content}", names)
+    apiurl = apiurl.replace("${url}",url).replace("${appid}",appid).replace("${sign}",secret).replace("${content}", names)
     req = urllib2.Request(apiurl)
     res_data = urllib2.urlopen(req)
     res = res_data.read()
@@ -490,6 +547,7 @@ if __name__ == '__main__':
     simpletitleWidthList= [3, 1, 2,1, 1, 1]
     win = tk.Tk()
     win.protocol("WM_DELETE_WINDOW", closeHandler)
+    #win.wm_attributes('-topmost', 1)
     w = 565
     h = 365
     win.title("餐补生成工具")
@@ -523,32 +581,59 @@ if __name__ == '__main__':
     ttk.Button(mail,text="保存",command=savemail).grid(column=1, row=3)
     mail.protocol("WM_DELETE_WINDOW", closeMailHandler)
 
+
+
+    #账号设置
+    account = tk.Toplevel()
+    account.title("OA账号设置")
+    account.withdraw()
+    account.attributes('-toolwindow', True)
+    account.geometry('%dx%d+%d+%d' % (500, 200, (ws / 2) - 250, hs / 2 - 100))
+    tk.Label(account, text='驱动路径').grid(column=0, row=0)
+    driverPath = tk.StringVar()
+    driverPath.set(config["driverPath"])
+    ttk.Entry(account, width=50, textvariable=driverPath).grid(column=1, row=0)
+
+    tk.Label(account, text='登陆账号').grid(column=0, row=1)
+    username = tk.StringVar()
+    username.set(config["username"])
+    ttk.Entry(account, width=50, textvariable=username).grid(column=1, row=1)
+
+    tk.Label(account, text='登陆密码').grid(column=0, row=2)
+    password = tk.StringVar()
+    password.set(config["password"])
+    ttk.Entry(account, width=50, textvariable=password).grid(column=1, row=2)
+
+    tk.Label(account, text='审批人员').grid(column=0, row=3)
+    auditor = tk.StringVar()
+    auditor.set(config["auditor"])
+    ttk.Entry(account, width=50, textvariable=auditor).grid(column=1, row=3)
+    account.protocol("WM_DELETE_WINDOW", closeAccountHandler)
     #接口设置
-    showapi = tk.Toplevel()
-    showapi.title("拼音接口设置")
-    showapi.withdraw()
-    showapi.attributes('-toolwindow', True)
-    showapi.geometry('%dx%d+%d+%d' % (500, 200, (ws / 2) - 250, hs / 2 - 100))
-
-    tk.Label(showapi, text='url').grid(column=0, row=0)
-    url = tk.StringVar()
-    url.set(config["url"])
-    ttk.Entry(showapi, width=50, textvariable=url).grid(column=1, row=0)
-
-    tk.Label(showapi, text='appid').grid(column=0, row=1)
-    appid = tk.StringVar()
-    appid.set(config["appid"])
-    ttk.Entry(showapi, width=50, textvariable=appid).grid(column=1, row=1)
-
-    tk.Label(showapi, text='secret').grid(column=0, row=2)
-    secret = tk.StringVar()
-    secret.set(config["secret"])
-    ttk.Entry(showapi, width=50, textvariable=secret).grid(column=1, row=2)
-
-    ttk.Label(showapi,text='该接口使用时间为1年，1年后需要重新订阅').grid(column=1,row=3)
-    ttk.Button(showapi, text="保存", command=saveapi).grid(column=1, row=4)
-    showapi.protocol("WM_DELETE_WINDOW", closeApiHandler)
-
+    # showapi = tk.Toplevel()
+    # showapi.title("拼音接口设置")
+    # showapi.withdraw()
+    # showapi.attributes('-toolwindow', True)
+    # showapi.geometry('%dx%d+%d+%d' % (500, 200, (ws / 2) - 250, hs / 2 - 100))
+    #
+    # tk.Label(showapi, text='url').grid(column=0, row=0)
+    # url = tk.StringVar()
+    # url.set(config["url"])
+    # ttk.Entry(showapi, width=50, textvariable=url).grid(column=1, row=0)
+    #
+    # tk.Label(showapi, text='appid').grid(column=0, row=1)
+    # appid = tk.StringVar()
+    # appid.set(config["appid"])
+    # ttk.Entry(showapi, width=50, textvariable=appid).grid(column=1, row=1)
+    #
+    # tk.Label(showapi, text='secret').grid(column=0, row=2)
+    # secret = tk.StringVar()
+    # secret.set(config["secret"])
+    # ttk.Entry(showapi, width=50, textvariable=secret).grid(column=1, row=2)
+    #
+    # ttk.Label(showapi,text='该接口使用时间为1年，1年后需要重新订阅').grid(column=1,row=3)
+    # ttk.Button(showapi, text="保存", command=saveapi).grid(column=1, row=4)
+    # showapi.protocol("WM_DELETE_WINDOW", closeApiHandler)
 
 
     choise = tk.Frame(win)

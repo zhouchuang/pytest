@@ -42,7 +42,8 @@ print property
 
 driverpath = str(property["driverPath"]).replace("\:", ":").replace("\\\\", "\\")
 print driverpath
-chrome_driver = os.path.abspath(r"C:\Python27\chromedriver.exe")
+#chrome_driver = os.path.abspath(r"C:\Python27\chromedriver.exe")
+chrome_driver = os.path.abspath(driverpath)
 os.environ["webdriver.chrome.driver"] = chrome_driver
 driver = webdriver.Chrome(chrome_driver)
 
