@@ -14,6 +14,7 @@ import json
 import getpass
 import kaisaIEDriver
 import threading
+import time as timer
 from tkinter import ttk
 
 borders = xlwt.Borders()
@@ -74,7 +75,7 @@ styleTotalAllBg.pattern = badAllBG
 
 chineseM = ['一','二','三','四','五','六','七','八','九','十','十一','十二']
 
-config = {"username":"zhouchuang","password":"1988204110zc@jzy.com","url":"http://192.168.1.82/Portal/index.aspx","receiver":"","autoMail":'False',"autoOA":'False',"name":"","driverPath":"C:\Users\zhouchuang\Desktop\IEDriverServer.exe","auditor":"陈小龙"}
+config = {"username":"","password":"","url":"http://192.168.1.82/Portal/index.aspx","receiver":"","autoMail":'False',"autoOA":'False',"name":"","driverPath":"","auditor":"陈小龙"}
 
 outLook = kaisaMailDriver.OutLook()
 
@@ -211,23 +212,53 @@ def exportFile(event):
                            entity['日期'.decode('utf-8')] + '\t\t' + entity['周期'.decode('utf-8')] + '\t\t' + entity['上班时间'.decode('utf-8')] + '\t\t' + entity[
                                '下班时间'.decode('utf-8')] + '\n\r')
         date = datauser[0]['日期'.decode('utf-8')]
+        index += 1
+        msg.insert(index, "----邮件发送----\n\r")
         #发送邮件
         if (config['receiver']) and  config["autoMail"]=='True':
-            index += 1
-            msg.insert(index, "----邮件发送----\n\r")
-            #date = datauser[0]['日期'.decode('utf-8')]
-            filename = chineseM[int(date[5:7]) - 1]
-            outLook.send(config['receiver'], "加班餐费统计",os.path.realpath(sys.argv[0])[0:os.path.realpath(sys.argv[0]).rfind("\\")+1]+exportfilename ,chineseM[int(date[5:7]) - 1]+"月份加班餐费统计")
-            index += 1
-            msg.insert(index,"邮件已经发送到用户‘"+config["receiver"]+"’，邮件发送成功")
 
+            # index += 1
+            # msg.insert(index, "启动Outlook\n\r")
+            # os.startfile("C:\Users\zhouchuang\Desktop\Microsoft Outlook 2010.lnk")
+            # timer.sleep(2)
+            #filename = chineseM[int(date[5:7]) - 1]
+            # try:
+            #     os.startfile("C:\Users\zhouchuang\Desktop\Microsoft Outlook 2010.lnk")
+            #     outLook.send(config['receiver'], "加班餐费统计",os.path.realpath(sys.argv[0])[0:os.path.realpath(sys.argv[0]).rfind("\\")+1]+exportfilename ,chineseM[int(date[5:7]) - 1]+"月份加班餐费统计")
+            #     index += 1
+            #     msg.insert(index, "邮件已经发送到用户‘" + config["receiver"] + "’，邮件发送成功\n\r")
+            # except Exception ,e:
+            #     index += 1
+            #     msg.insert(index, "邮件发送失败，请先打开Outlook后重试下\n\r")
+            #     pass
+
+            threading.Thread(target=startMail,args=(index, date,exportfilename,)).start()
+        else:
+            index += 1
+            msg.insert(index, "没有开启自动发送邮件功能或者没有填写统计人员邮箱地址，请在 “设置>邮件设置” 中配置\n\r")
         #if(config['autoOA'])=='True'
         index += 1
         msg.insert(index, "----启动IE填写考勤异常信息----\n\r")
-        threading.Thread(target=startOA,args=(index,int(date[0:4]),int(date[5:7]),forgetSign,config["auditor"],)).start()
+        if config["autoOA"] == 'True':
+            threading.Thread(target=startOA,args=(index,int(date[0:4]),int(date[5:7]),forgetSign,config["auditor"],)).start()
+        else:
+            index += 1
+            msg.insert(index, "没有开启自动处理考勤异常功能，请在 “设置>OA设置” 中配置\n\r")
 
     # win32api.MessageBox(0, '处理成功'.decode('utf-8'), '提示'.decode('utf-8'), win32con.MB_OK)
     # event.widget.config(state="normal")
+def startMail(index,date,exportfilename):
+    try:
+        os.startfile("C:\Users\zhouchuang\Desktop\Microsoft Outlook 2010.lnk")
+        outLook.send(config['receiver'], "加班餐费统计",
+                     os.path.realpath(sys.argv[0])[0:os.path.realpath(sys.argv[0]).rfind("\\") + 1] + exportfilename,
+                     chineseM[int(date[5:7]) - 1] + "月份加班餐费统计")
+        index += 1
+        msg.insert(index, "邮件已经发送到用户‘" + config["receiver"] + "’，邮件发送成功\n\r")
+    except Exception, e:
+        index += 1
+        msg.insert(index, "邮件发送失败，请先打开Outlook后重试下\n\r")
+        pass
 def startOA(index,year,month,forgetSign,auditor):
     kaisaIEDriver.step_00_closeHandler("IEDriverServer.exe")
     index += 1
@@ -437,6 +468,11 @@ def saveOA():
     config["username"] = username.get()
     config["password"] = password.get()
     config["auditor"] = auditor.get()
+    if autoException.get()==0:
+        config["autoOA"] = 'False'
+    else:
+        config["autoOA"] = 'True'
+    account.withdraw()
     updateConfig()
 def closeHandler():
     pathstr =  os.path.realpath(sys.argv[0]).split('\\')
@@ -477,6 +513,9 @@ def initConfigFile():
         for pro in db.split("\n"):
             if '=' in pro:
                 config[pro.split('=')[0].strip()] = pro.split('=')[1].strip()
+    if not config["driverPath"]:
+        config["driverPath"] = os.path.realpath(sys.argv[0])[0:os.path.realpath(sys.argv[0]).rfind("\\")+1]+"IEDriverServer.exe"
+        updateConfig()
 
 def updateConfig():
     profile = "C:\\Users\\" + getpass.getuser() + "\\.tools" + "\\allowance.properties"
@@ -547,7 +586,7 @@ if __name__ == '__main__':
     simpletitleWidthList= [3, 1, 2,1, 1, 1]
     win = tk.Tk()
     win.protocol("WM_DELETE_WINDOW", closeHandler)
-    #win.wm_attributes('-topmost', 1)
+    win.wm_attributes('-topmost', 1)
     w = 565
     h = 365
     win.title("餐补生成工具")
@@ -608,6 +647,14 @@ if __name__ == '__main__':
     auditor = tk.StringVar()
     auditor.set(config["auditor"])
     ttk.Entry(account, width=50, textvariable=auditor).grid(column=1, row=3)
+
+    autoException = tk.IntVar()
+    autoException.set(1 if str(config["autoOA"]) == "True" else 0)
+    tk.Label(account, text='O A处理').grid(column=0, row=4)
+    ttk.Radiobutton(account, text="启动", variable=autoException, value=1).grid(column=1, row=4, sticky='w')
+    ttk.Radiobutton(account, text="关闭", variable=autoException, value=0).grid(column=1, row=5, sticky='w')
+
+    ttk.Button(account, text="保存", command=saveOA).grid(column=1, row=6)
     account.protocol("WM_DELETE_WINDOW", closeAccountHandler)
     #接口设置
     # showapi = tk.Toplevel()
@@ -646,6 +693,6 @@ if __name__ == '__main__':
     admin.bind("<Button-1>", setAdmin);
     message = tk.Label(choise,text="Copyright ©深圳深信金融服务有限公司\r\n佳兆业金服 研发 周创\r\n版本号：v2.0",fg='orange').grid(rows=3,column=1,pady=20)
 
-    #outLook.send('635659050@qq.com','hello','hello world')
+    #outLook.sendSimple('635659050@qq.com','hello','hello world')
     win.mainloop()
 
