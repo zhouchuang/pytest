@@ -9,15 +9,11 @@ import threading
 import requests
 import json
 from selenium import webdriver
-
-property  = {"driverPath":"C:\Users\zhouchuang\Desktop\chromedriver.exe","loginurl":"https://kyfw.12306.cn/otn/login/init","username":"18607371493","password":"1988204110zc","ticket":"https://kyfw.12306.cn/otn/leftTicket/init"}
-driverpath = str(property["driverPath"]).replace("\:", ":").replace("\\\\", "\\")
-chrome_driver = os.path.abspath(driverpath)
-os.environ["webdriver.chrome.driver"] = chrome_driver
-browser = webdriver.Chrome(chrome_driver)
-#browser.set_window_size(1366, 768)
-
-
+from selenium.webdriver.common.keys import Keys
+property  = {"driverPath":"C:\Program Files (x86)\Mozilla Firefox\\firefox.exe","loginurl":"https://kyfw.12306.cn/otn/login/init","username":"18607371493","password":"1988204110zc","ticket":"https://kyfw.12306.cn/otn/leftTicket/init"}
+profile_dir="C:\Users\zhouchuang\AppData\Roaming\Mozilla\Firefox\Profiles\\axqidngq.selenium"
+profile = webdriver.FirefoxProfile(profile_dir)
+browser = webdriver.Firefox(profile)
 
 
 def login():
@@ -46,7 +42,7 @@ def openTicket():
                 break
         except Exception,e:
             print e
-            pass
+            break
 
     #browser.execute_script("alert('已保存相关需求，工具会自动扫描相关符合条件的车次')")
     print  browser.execute_script("return station_names")
