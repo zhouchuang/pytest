@@ -10,14 +10,17 @@ import requests
 import json
 from selenium import webdriver
 
-property  = {"driverPath":"C:\Users\zhouchuang\Desktop\chromedriver.exe","loginurl":"https://kyfw.12306.cn/otn/login/init","username":"18607371493","password":"1988204110zc","ticket":"https://kyfw.12306.cn/otn/leftTicket/init"}
-driverpath = str(property["driverPath"]).replace("\:", ":").replace("\\\\", "\\")
-chrome_driver = os.path.abspath(driverpath)
-os.environ["webdriver.chrome.driver"] = chrome_driver
-browser = webdriver.Chrome(chrome_driver)
+property  = {"driverPath":"‪C:\driver\chromedriver_x64.exe","loginurl":"https://kyfw.12306.cn/otn/login/init","username":"18607371493","password":"1988204110zc","ticket":"https://kyfw.12306.cn/otn/leftTicket/init"}
+#driverpath = str(property["driverPath"]).replace("\:", ":").replace("\\\\", "\\")
+#chrome_driver = os.path.abspath("‪C:\driver\chromedriver_x64.exe")
+#os.environ["webdriver.chrome.driver"] = chrome_driver
+#browser = webdriver.Chrome(chrome_driver)
 #browser.set_window_size(1366, 768)
 
 
+profile_dir="C:\Users\zhouchuang\AppData\Roaming\Mozilla\Firefox\Profiles\\fhtkoq02.default-1502892113693"
+profile = webdriver.FirefoxProfile(profile_dir)
+browser = webdriver.Firefox(profile)
 
 
 def login():

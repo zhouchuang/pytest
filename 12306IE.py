@@ -13,6 +13,8 @@ from selenium.webdriver.common.keys import Keys
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
+from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+import  random
 
 w = 210
 h = 60
@@ -24,6 +26,7 @@ count=0
 browser=None
 
 property  = {"loginurl":"https://kyfw.12306.cn/otn/login/init","username":"18607371493","password":"1988204110zc","ticket":"https://kyfw.12306.cn/otn/leftTicket/init","fromStationText":"深圳","fromStation":"","toStationText":"长沙","toStation":"","time":"2017-08-17"}
+DesiredCapabilities.INTERNETEXPLORER['ignoreProtectedModeSettings'] = True
 
 def openBrowser():
     global browser
@@ -87,8 +90,9 @@ def startScan():
     property["time"] = browser.find_element_by_id("train_date").get_attribute("value")
     printStation(property["fromStationText"]  + "-" +property["toStationText"])
     printTime(property["time"])
-    threading.Thread(target=useRequest).start()
-    # threading.Thread(target=autoSearch).start()
+    #threading.Thread(target=useRequest).start()
+    threading.Thread(target=autoSearch).start()
+    threading.Thread(target=autoCheckOnOrder).start()
 
 def useRequest():
     matchParam()
@@ -131,19 +135,28 @@ def stopScan():
     isSeach = False
     status = "SCAN"
     mainBtn.configure(image=scanim)
-    printMsg("已经扫描"+str(count/2)+"次")
+    printMsg("已经扫描"+str(count)+"次")
 
+def autoCheckOnOrder():
+    global isSeach
+    global browser
+    while isSeach:
+        time.sleep(1)
+        if not (property["ticket"])==browser.current_url:
+            break
+    stopScan()
+    threading.Thread(target=shake, args=("抢到票了啊",)).start()
 
-lastBtn = None
 def autoSearch():
     global isSeach
     global browser
     global count
-    global lastBtn
     while isSeach:
         # print browser.find_element_by_id("query_ticket").is_enabled()
-        browser.find_element_by_id("query_ticket").click()
-        count += 1
+        btn = browser.find_element_by_id("query_ticket")
+        btn.click()
+        if btn.text == "查询":
+            count += 1
 #浏览器控制切换到最新页面
 def switchCurrentHandler():
     global browser
@@ -197,6 +210,7 @@ def handler():
     else:
         stopScan()
 
+
 def flowHandler():
     global mainBtn
     mainBtn.configure(state="disabled")
@@ -224,6 +238,42 @@ def printTime(time):
     canvas.create_text(btnW+2, h*2 / 3,
                        text=time
                        , fill='#BB4444', tags="time")
+
+
+def mousedownHandler(event):
+    global clickpx
+    global clickpy
+    clickpx = event.x
+    clickpy = event.y
+def releaseFrame(event):
+    global clickpx
+    global clickpy
+    global lastW
+    global lastH
+    plusx = clickpx-event.x
+    plusy = clickpy-event.y
+    lastW -= plusx
+    lastH -= plusy
+    win.geometry('%dx%d+%d+%d' % (w, h, lastW, lastH))
+def mouseMotionHandler(event):
+    global clickpx
+    global clickpy
+    global lastW
+    global lastH
+    lastW -= clickpx - event.x
+    lastH -= clickpy - event.y
+    win.geometry('%dx%d+%d+%d' % (w, h, lastW, lastH))
+
+
+def shake(msg):
+    printMsg(msg)
+    i = 100
+    while i>0:
+        time.sleep(0.05)
+        win.geometry('%dx%d+%d+%d' % (w, h, lastW+random.randint(-5,5), lastH+random.randint(-5,5)))
+        i -=1
+    win.geometry('%dx%d+%d+%d' % (w, h, lastW , lastH ))
+
 if __name__=='__main__':
     reload(sys)
     sys.setdefaultencoding('utf-8')
@@ -231,7 +281,10 @@ if __name__=='__main__':
     global stopim
     global scanim
     global mainBtn
-
+    global ws
+    global hs
+    global lastW
+    global lastH
     win = tk.Tk()
     win.overrideredirect(True)
     # win.attributes("-alpha", 0.8)  # 窗口透明度60 %
@@ -243,7 +296,9 @@ if __name__=='__main__':
     hs = win.winfo_screenheight()
     x = (ws / 2) - (w / 2)
     y = (hs / 2) - (h / 2)
-    win.geometry('%dx%d+%d+%d' % (w, h, ws-w-10, hs-h-50))
+    lastW = ws-w-10
+    lastH = hs-h-50
+    win.geometry('%dx%d+%d+%d' % (w, h,lastW ,lastH ))
 
 
     bg = Image.open("12306.bmp")
@@ -261,6 +316,7 @@ if __name__=='__main__':
     mainBtn = tk.Button(win,image=startim, width=btnW, height=btnW,bg="lightblue",command=handler)
     mainBtn.pack(side="left",expand="yes")
 
+
     canvas = tk.Canvas(win,
                width=w,
                height=h,
@@ -268,6 +324,8 @@ if __name__=='__main__':
     canvas.configure(highlightthickness=0)
     canvas.pack(side="left")
     canvas.create_image((w-btnW)/2, (h)/2, image=bgim)  # 使用create_image将图片添加到Canvas组件中
+    canvas.bind("<Button-1>", mousedownHandler)
+    canvas.bind("<B1-Motion>", mouseMotionHandler)
 
     printMsg("点击开始启动浏览器")
     # canvas.create_text(btnW, h/2,  # 使用create_text方法在坐标（302，77）处绘制文字
