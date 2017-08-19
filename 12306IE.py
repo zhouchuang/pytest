@@ -25,7 +25,8 @@ status="START"
 count=0
 browser=None
 
-property  = {"loginurl":"https://kyfw.12306.cn/otn/login/init","username":"18607371493","password":"1988204110zc","ticket":"https://kyfw.12306.cn/otn/leftTicket/init","fromStationText":"深圳","fromStation":"","toStationText":"长沙","toStation":"","time":"2017-08-17"}
+# property  = {"alipayAccount":"18607371493","alipayPassword":"1988204110zc","payOrder":"https://kyfw.12306.cn/otn//payOrder/init","loginurl":"https://kyfw.12306.cn/otn/login/init","username":"18607371493","password":"1988204110zc","ticket":"https://kyfw.12306.cn/otn/leftTicket/init","fromStationText":"深圳","fromStation":"","toStationText":"长沙","toStation":"","time":"2017-08-17"}
+property  = {"payPassword":"","alipayAccount":"","alipayPassword":"","payOrder":"https://kyfw.12306.cn/otn//payOrder/init","loginurl":"https://kyfw.12306.cn/otn/login/init","username":"","password":"","ticket":"https://kyfw.12306.cn/otn/leftTicket/init","fromStationText":"深圳","fromStation":"","toStationText":"长沙","toStation":"","time":"2017-08-17"}
 DesiredCapabilities.INTERNETEXPLORER['ignoreProtectedModeSettings'] = True
 
 def openBrowser():
@@ -60,22 +61,6 @@ def checkout():
     printMsg("获取成功\n打开购票页面")
 
 
-# def searchHandler():
-#     global isSeach
-#     global isCanScan
-#     print isSeach
-#     print isCanScan
-#     if not isCanScan:
-#         return
-#     else:
-#         if searchText.get() == "自动扫描（停止）":
-#             isSeach = False
-#             searchText.set("自动扫描（启动）")
-#         else:
-#             isSeach = True
-#             searchText.set("自动扫描（停止）")
-#             threading.Thread(target=autoSearch).start()
-
 def startScan():
     global isSeach
     global status
@@ -85,14 +70,13 @@ def startScan():
     isSeach = True
     mainBtn.configure(image=stopim)
     status = "STOP"
-    property["fromStationText"] = browser.find_element_by_id("fromStationText").get_attribute("value").decode("utf-8")
-    property["toStationText"] = browser.find_element_by_id("toStationText").get_attribute("value").decode("utf-8")
+    property["fromStationText"] = browser.find_element_by_id("fromStationText").get_attribute("value")
+    property["toStationText"] = browser.find_element_by_id("toStationText").get_attribute("value")
     property["time"] = browser.find_element_by_id("train_date").get_attribute("value")
     printStation(property["fromStationText"]  + "-" +property["toStationText"])
     printTime(property["time"])
     #threading.Thread(target=useRequest).start()
     threading.Thread(target=autoSearch).start()
-    threading.Thread(target=autoCheckOnOrder).start()
 
 def useRequest():
     matchParam()
@@ -137,15 +121,40 @@ def stopScan():
     mainBtn.configure(image=scanim)
     printMsg("已经扫描"+str(count)+"次")
 
-def autoCheckOnOrder():
-    global isSeach
+
+def toPayGatewayPage():
     global browser
-    while isSeach:
-        time.sleep(1)
-        if not (property["ticket"])==browser.current_url:
-            break
-    stopScan()
-    threading.Thread(target=shake, args=("抢到票了啊",)).start()
+    time.sleep(5)
+    browser.find_element_by_id("payButton").click()
+    browser.find_element_by_id("payButton").click()
+    browser.find_element_by_id("payButton").click()
+    toPayAlipayPage()
+
+def toPayAlipayPage():
+    global browser
+    switchCurrentHandler()
+    browser.find_elements_by_tag_name("img")[-1].click()
+    toPayOrderByAlipay()
+
+def toPayOrderByAlipay():
+    global browser
+    if property["alipayAccount"] and property["alipayPassword"]:
+        browser.find_element_by_id("J_tLoginId").send_keys(property["alipayAccount"])
+        browser.find_element_by_id("payPasswd_rsainput").send_keys(property["alipayPassword"])
+        browser.find_element_by_id("J_submitBtn").click()
+        toPayFinal()
+
+def toPayFinal():
+    global browser
+    time.sleep(5)
+    # browser.find_element_by_id("payPassword_rsainput").send_keys(property["payPassword"])
+    elem = browser.find_element_by_css_selector('#payPassword_rsainput')
+    browser.execute_script('''
+        var elem = arguments[0];
+        var value = arguments[1];
+        elem.value = value;
+    ''', elem, property["payPassword"])
+    browser.find_element_by_id("J_authSubmit").click()
 
 def autoSearch():
     global isSeach
@@ -153,10 +162,19 @@ def autoSearch():
     global count
     while isSeach:
         # print browser.find_element_by_id("query_ticket").is_enabled()
-        btn = browser.find_element_by_id("query_ticket")
-        btn.click()
-        if btn.text == "查询":
-            count += 1
+        try:
+            browser.find_element_by_id("query_ticket").click()
+        except Exception,e:
+            pass
+        count += 1
+        # if count%5==0 and (not (property["ticket"]) == browser.current_url):
+        if count%5==0 and browser.current_url and str(property["payOrder"]) in str(browser.current_url):
+            stopScan()
+            threading.Thread(target=shake, args=("抢到票了啊",200,)).start()
+            toPayGatewayPage()
+            break
+
+
 #浏览器控制切换到最新页面
 def switchCurrentHandler():
     global browser
@@ -203,12 +221,17 @@ def closeHandler():
 
 def handler():
     global status
-    if "START"==status:
-        flowHandler()
-    elif "SCAN"==status:
-        startScan()
+
+    if property["password"] and property["username"]:
+        if "START"==status:
+            flowHandler()
+        elif "SCAN"==status:
+            startScan()
+        else:
+            stopScan()
     else:
-        stopScan()
+        openConfig()
+        threading.Thread(target=shake, args=("请输入登录账号密码",40,)).start()
 
 
 def flowHandler():
@@ -221,7 +244,14 @@ def flow():
     openBrowser()
     login()
     checkout()
+    # outstandingOrder()
     openTicket()
+def outstandingOrder():
+    global browser
+    browser.get("https://kyfw.12306.cn/otn/queryOrder/initNoComplete")
+    time.sleep(3)
+    browser.find_element_by_id("continuePayNoMyComplete").click()
+    toPayGatewayPage()
 
 def printMsg(msg):
     canvas.delete("msg","station","time")
@@ -264,19 +294,69 @@ def mouseMotionHandler(event):
     lastH -= clickpy - event.y
     win.geometry('%dx%d+%d+%d' % (w, h, lastW, lastH))
 
+def configureHandler(event):
+    openConfig()
 
-def shake(msg):
+def openConfig():
+    global config
+    config.update()
+    config.deiconify()
+
+def saveConfig():
+    global config
+    global username
+    global password
+    global alipayAccount
+    global alipayPassword
+    property["username"] = username.get()
+    property["password"] = password.get()
+    property["alipayAccount"] = alipayAccount.get()
+    property["alipayPassword"] = alipayPassword.get()
+    property["loginurl"] = loginurl.get()
+    property["ticket"] = ticket.get()
+    property["payOrder"] = payOrder.get()
+    config.withdraw()
+    updateConfig()
+
+def updateConfig():
+    profile = "C:\\Users\\" + getpass.getuser() + "\\.tools" + "\\12306.properties"
+    file_object = open(profile, 'w')
+    list_of_text_strings  = ""
+    for key in property:
+        list_of_text_strings += (key+"="+str(property[key])+"\n")
+    file_object.writelines(list_of_text_strings)
+    file_object.close()
+
+def initConfigFile():
+    path = "C:\\Users\\" + getpass.getuser() + "\\.tools"
+    if not os.path.exists(path):
+        os.mkdir(path)
+    #如果存在，则读取配置文件
+    file = path+"\\12306.properties"
+    if  os.path.exists(file):
+        pro = open(file)
+        db = pro.read()
+        pro.close()
+        for pro in db.split("\n"):
+            if '=' in pro:
+                property[pro.split('=')[0].strip()] = pro.split('=')[1].strip()
+
+def shake(msg,delay):
     printMsg(msg)
-    i = 100
+    i = delay
+    a = 8
     while i>0:
-        time.sleep(0.05)
-        win.geometry('%dx%d+%d+%d' % (w, h, lastW+random.randint(-5,5), lastH+random.randint(-5,5)))
+        time.sleep(0.03)
+        win.geometry('%dx%d+%d+%d' % (w, h, lastW+random.randint(-a ,a ), lastH+random.randint(-a ,a )))
         i -=1
     win.geometry('%dx%d+%d+%d' % (w, h, lastW , lastH ))
+def closeConfigHandler():
+    config.withdraw()
 
 if __name__=='__main__':
     reload(sys)
     sys.setdefaultencoding('utf-8')
+    initConfigFile()
     global startim
     global stopim
     global scanim
@@ -326,8 +406,9 @@ if __name__=='__main__':
     canvas.create_image((w-btnW)/2, (h)/2, image=bgim)  # 使用create_image将图片添加到Canvas组件中
     canvas.bind("<Button-1>", mousedownHandler)
     canvas.bind("<B1-Motion>", mouseMotionHandler)
+    canvas.bind("<Double-Button-1>",configureHandler)
 
-    printMsg("点击开始启动浏览器")
+    printMsg("点击开始\n双击配置")
     # canvas.create_text(btnW, h/2,  # 使用create_text方法在坐标（302，77）处绘制文字
     #                    text='点击开始启动浏览器'  # 所绘制文字的内容
     #                    , fill='#BB4444',tags = "msg")  # 所绘制文字的颜色为灰色
@@ -349,6 +430,66 @@ if __name__=='__main__':
     # searchText = tk.StringVar()
     # searchText.set("自动扫描（启动）")
     # searchBtn = ttk.Button(win, textvariable=searchText,command=searchHandler).grid(column=1, row=3)
+
+    # 配置弹出框
+    config = tk.Toplevel()
+    config.title("账号设置")
+    config.withdraw()
+    config.attributes('-toolwindow', True)
+    config.geometry('%dx%d+%d+%d' % (500, 300, (ws / 2) - 250, hs / 2 - 100))
+
+    tk.Label(config, text='登录账号').grid(column=0, row=0)
+    username = tk.StringVar()
+    username.set(property["username"])
+    ttk.Entry(config, width=50, textvariable=username).grid(column=1, row=0)
+
+    tk.Label(config, text='登录密码').grid(column=0, row=1)
+    password = tk.StringVar()
+    password.set(property["password"])
+    ttk.Entry(config, width=50, textvariable=password,show="*").grid(column=1, row=1)
+
+    tk.Label(config, text='支付账号').grid(column=0, row=2)
+    alipayAccount = tk.StringVar()
+    alipayAccount.set(property["alipayAccount"])
+    ttk.Entry(config, width=50, textvariable=alipayAccount).grid(column=1, row=2)
+
+    tk.Label(config, text='支付密码').grid(column=0, row=3)
+    alipayPassword = tk.StringVar()
+    alipayPassword.set(property["alipayPassword"])
+    ttk.Entry(config, width=50, textvariable=alipayPassword,show="*").grid(column=1, row=3)
+
+    tk.Label(config, text='交易密码').grid(column=0, row=4)
+    payPassword = tk.StringVar()
+    payPassword.set(property["payPassword"])
+    ttk.Entry(config, width=50, textvariable=payPassword,show="*").grid(column=1, row=4)
+
+
+    tk.Label(config, text='登录地址').grid(column=0, row=5)
+    loginurl = tk.StringVar()
+    loginurl.set(property["loginurl"])
+    ttk.Entry(config, width=50, textvariable=loginurl).grid(column=1, row=5)
+
+    tk.Label(config, text='购票地址').grid(column=0, row=6)
+    ticket = tk.StringVar()
+    ticket.set(property["ticket"])
+    ttk.Entry(config, width=50, textvariable=ticket).grid(column=1, row=6)
+
+    tk.Label(config, text='付款地址').grid(column=0, row=7)
+    payOrder = tk.StringVar()
+    payOrder.set(property["payOrder"])
+    ttk.Entry(config, width=50, textvariable=payOrder).grid(column=1, row=7)
+
+    ttk.Button(config, text="保存", command=saveConfig).grid(column=1, row=8)
+    config.protocol("WM_DELETE_WINDOW", closeConfigHandler)
+
+
+    # autoMailValue = tk.IntVar()
+    # autoMailValue.set(1 if str(config["autoMail"]) == "True" else 0)
+    # tk.Label(mail, text='自动发送邮件').grid(column=0, row=1)
+    # ttk.Radiobutton(mail, text="启动", variable=autoMailValue, value=1).grid(column=1, row=1, sticky='w')
+    # ttk.Radiobutton(mail, text="关闭", variable=autoMailValue, value=0).grid(column=1, row=2, sticky='w')
+    # ttk.Button(mail, text="保存", command=savemail).grid(column=1, row=3)
+
 
 
     win.mainloop()
