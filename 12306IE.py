@@ -4,17 +4,19 @@ import time
 import sys
 import re
 import getpass
-from socket import socket, AF_INET, SOCK_DGRAM
 import threading
 import requests
 import json
 from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 import  random
+import winsound
+import traceback
+
+
 
 w = 210
 h = 60
@@ -25,7 +27,6 @@ status="START"
 count=0
 browser=None
 
-# property  = {"alipayAccount":"18607371493","alipayPassword":"1988204110zc","payOrder":"https://kyfw.12306.cn/otn//payOrder/init","loginurl":"https://kyfw.12306.cn/otn/login/init","username":"18607371493","password":"1988204110zc","ticket":"https://kyfw.12306.cn/otn/leftTicket/init","fromStationText":"深圳","fromStation":"","toStationText":"长沙","toStation":"","time":"2017-08-17"}
 property  = {"payPassword":"","alipayAccount":"","alipayPassword":"","payOrder":"https://kyfw.12306.cn/otn//payOrder/init","loginurl":"https://kyfw.12306.cn/otn/login/init","username":"","password":"","ticket":"https://kyfw.12306.cn/otn/leftTicket/init","fromStationText":"深圳","fromStation":"","toStationText":"长沙","toStation":"","time":"2017-08-17"}
 DesiredCapabilities.INTERNETEXPLORER['ignoreProtectedModeSettings'] = True
 
@@ -33,7 +34,20 @@ def openBrowser():
     global browser
     browser = webdriver.Ie()
     browser.maximize_window()
-    printMsg("打开12306页面成功")
+    # try:
+    #     # iedriver = "C:\Python27\IEDriverServer.exe"
+    #     # os.environ["webdriver.ie.driver"] = iedriver
+    #     browser = webdriver.Ie()
+    #     browser.maximize_window()
+    # except Exception,e:
+    #     log(traceback.format_exc())
+    #     pass
+
+def log(msg):
+    profile = "C:\\Users\\" + getpass.getuser() + "\\.tools" + "\\12306.err"
+    file_object = open(profile, 'w')
+    file_object.writelines(msg)
+    file_object.close()
 
 def login():
     global browser
@@ -42,7 +56,7 @@ def login():
     browser.find_element_by_id("username").send_keys(property["username"])
     browser.find_element_by_id("password").send_keys(property["password"])
     handlerList.append(browser.current_window_handle)
-    printMsg("请选择正确验证码")
+
 
 def checkout():
     global browser
@@ -50,16 +64,16 @@ def checkout():
         time.sleep(1)
         if not ( browser.current_url == property["loginurl"] or browser.current_url==(property["loginurl"]+"#")) :
             break
-    printMsg("登陆成功\n获取用户信息")
+
+def getUserInfo():
     while True:
         try:
             if not "登录" == browser.find_element_by_id("login_user").text:
                 break
         except Exception,e:
+            printMsg(e)
             pass
         time.sleep(1)
-    printMsg("获取成功\n打开购票页面")
-
 
 def startScan():
     global isSeach
@@ -94,7 +108,7 @@ def scanTicket():
         # for str in  compressdata["data"]["result"]:
             # print str
         count += 1
-        print compressdata
+        # print compressdata
         time.sleep(0.5)
 
 def matchParam():
@@ -165,12 +179,14 @@ def autoSearch():
         try:
             browser.find_element_by_id("query_ticket").click()
         except Exception,e:
+            printMsg(e)
             pass
         count += 1
         # if count%5==0 and (not (property["ticket"]) == browser.current_url):
         if count%5==0 and browser.current_url and str(property["payOrder"]) in str(browser.current_url):
             stopScan()
             threading.Thread(target=shake, args=("抢到票了啊",200,)).start()
+            alert()
             toPayGatewayPage()
             break
 
@@ -198,6 +214,9 @@ def openTicket():
     mainBtn.configure(image=scanim)
     status = "SCAN"
 
+def exitHandler(event):
+    closeHandler()
+
 def closeHandler():
     pathstr =  os.path.realpath(sys.argv[0]).split('\\')
     filename = pathstr[-1]
@@ -214,14 +233,14 @@ def closeHandler():
         try:
             os.popen("taskkill /f /pid:"+ str(pid))
         except Exception, e:
-            print e.message
+            printMsg(e)
+            pass
     win.destroy()
     sys.exit()
 
 
 def handler():
     global status
-
     if property["password"] and property["username"]:
         if "START"==status:
             flowHandler()
@@ -237,13 +256,19 @@ def handler():
 def flowHandler():
     global mainBtn
     mainBtn.configure(state="disabled")
-    printMsg("已启动浏览器\n打开登陆页面")
     threading.Thread(target=flow).start()
 
 def flow():
+    printMsg("启动浏览器")
     openBrowser()
+    time.sleep(100)
+    printMsg("启动成功\n打开登录页面")
     login()
+    printMsg("请选择验证码")
     checkout()
+    printMsg("登录成功\n获取用户信息")
+    getUserInfo()
+    printMsg("获取成功\n进入购票页面")
     # outstandingOrder()
     openTicket()
 def outstandingOrder():
@@ -341,6 +366,8 @@ def initConfigFile():
             if '=' in pro:
                 property[pro.split('=')[0].strip()] = pro.split('=')[1].strip()
 
+def alert():
+    winsound.PlaySound("train.wav", winsound.SND_FILENAME | winsound.SND_ASYNC)
 def shake(msg,delay):
     printMsg(msg)
     i = delay
@@ -352,6 +379,12 @@ def shake(msg,delay):
     win.geometry('%dx%d+%d+%d' % (w, h, lastW , lastH ))
 def closeConfigHandler():
     config.withdraw()
+
+def resource_path(relative):
+    if hasattr(sys, "_MEIPASS"):
+        return os.path.join(sys._MEIPASS, relative)
+    return os.path.join(relative)
+
 
 if __name__=='__main__':
     reload(sys)
@@ -365,9 +398,10 @@ if __name__=='__main__':
     global hs
     global lastW
     global lastH
+    data_dir = "image"
     win = tk.Tk()
     win.overrideredirect(True)
-    # win.attributes("-alpha", 0.8)  # 窗口透明度60 %
+    win.attributes("-alpha", 0.8)  # 窗口透明度60 %
     win.protocol("WM_DELETE_WINDOW", closeHandler)
     win.wm_attributes('-topmost', 1)
 
@@ -381,16 +415,16 @@ if __name__=='__main__':
     win.geometry('%dx%d+%d+%d' % (w, h,lastW ,lastH ))
 
 
-    bg = Image.open("12306.bmp")
+    bg = Image.open(resource_path(os.path.join(data_dir, '12306.bmp')))
     bgim = ImageTk.PhotoImage(bg)
 
-    start = Image.open("start.png")
+    start = Image.open(resource_path(os.path.join(data_dir, 'start.png')))
     startim = ImageTk.PhotoImage(start)
 
-    stop = Image.open("stop.png")
+    stop = Image.open(resource_path(os.path.join(data_dir, 'stop.png')))
     stopim = ImageTk.PhotoImage(stop)
 
-    scan = Image.open("scan.png")
+    scan = Image.open(resource_path(os.path.join(data_dir, 'scan.png')))
     scanim = ImageTk.PhotoImage(scan)
 
     mainBtn = tk.Button(win,image=startim, width=btnW, height=btnW,bg="lightblue",command=handler)
@@ -407,8 +441,9 @@ if __name__=='__main__':
     canvas.bind("<Button-1>", mousedownHandler)
     canvas.bind("<B1-Motion>", mouseMotionHandler)
     canvas.bind("<Double-Button-1>",configureHandler)
+    canvas.bind("<Double-Button-3>",exitHandler)
 
-    printMsg("点击开始\n双击配置")
+    printMsg("双击右键配置\n双击左键退出")
     # canvas.create_text(btnW, h/2,  # 使用create_text方法在坐标（302，77）处绘制文字
     #                    text='点击开始启动浏览器'  # 所绘制文字的内容
     #                    , fill='#BB4444',tags = "msg")  # 所绘制文字的颜色为灰色
