@@ -32,16 +32,16 @@ DesiredCapabilities.INTERNETEXPLORER['ignoreProtectedModeSettings'] = True
 
 def openBrowser():
     global browser
-    browser = webdriver.Ie()
-    browser.maximize_window()
-    # try:
-    #     # iedriver = "C:\Python27\IEDriverServer.exe"
-    #     # os.environ["webdriver.ie.driver"] = iedriver
-    #     browser = webdriver.Ie()
-    #     browser.maximize_window()
-    # except Exception,e:
-    #     log(traceback.format_exc())
-    #     pass
+    # browser = webdriver.Ie()
+    # browser.maximize_window()
+    try:
+        # iedriver = "C:\Python27\IEDriverServer.exe"
+        # os.environ["webdriver.ie.driver"] = iedriver
+        browser = webdriver.Ie()
+        browser.maximize_window()
+    except Exception,e:
+        log(traceback.format_exc())
+        pass
 
 def log(msg):
     profile = "C:\\Users\\" + getpass.getuser() + "\\.tools" + "\\12306.err"
@@ -90,8 +90,8 @@ def startScan():
     printStation(property["fromStationText"]  + "-" +property["toStationText"])
     printTime(property["time"])
     #threading.Thread(target=useRequest).start()
-    threading.Thread(target=autoSearch).start()
-
+    # threading.Thread(target=autoSearch).start()
+    threading.Thread(target=changeFrequency).start()
 def useRequest():
     matchParam()
     scanTicket()
@@ -153,6 +153,7 @@ def toPayAlipayPage():
 def toPayOrderByAlipay():
     global browser
     if property["alipayAccount"] and property["alipayPassword"]:
+        time.sleep(5)
         browser.find_element_by_id("J_tLoginId").send_keys(property["alipayAccount"])
         browser.find_element_by_id("payPasswd_rsainput").send_keys(property["alipayPassword"])
         browser.find_element_by_id("J_submitBtn").click()
@@ -170,6 +171,27 @@ def toPayFinal():
     ''', elem, property["payPassword"])
     browser.find_element_by_id("J_authSubmit").click()
 
+def changeFrequency():
+    global browser
+    global isSeach
+    browser.execute_script('''
+        autoSearchTime = 1000
+    ''')
+    browser.find_element_by_id("query_ticket").click()
+    if browser.find_element_by_id("query_ticket").text == "查询":
+        browser.find_element_by_id("query_ticket").click()
+    while isSeach:
+        time.sleep(1)
+        if  browser.current_url and str(property["payOrder"]) in str(browser.current_url):
+            stopScan()
+            shakeHandler("抢到票了啊",200)
+            alert()
+            toPayGatewayPage()
+            break
+    browser.find_element_by_id("query_ticket").click()
+
+
+
 def autoSearch():
     global isSeach
     global browser
@@ -185,7 +207,7 @@ def autoSearch():
         # if count%5==0 and (not (property["ticket"]) == browser.current_url):
         if count%5==0 and browser.current_url and str(property["payOrder"]) in str(browser.current_url):
             stopScan()
-            threading.Thread(target=shake, args=("抢到票了啊",200,)).start()
+            shakeHandler("抢到票了啊", 200)
             alert()
             toPayGatewayPage()
             break
@@ -218,6 +240,7 @@ def exitHandler(event):
     closeHandler()
 
 def closeHandler():
+    browser.quit()
     pathstr =  os.path.realpath(sys.argv[0]).split('\\')
     filename = pathstr[-1]
     cmd = "tasklist /fi \""+"imagename eq "+filename+"\" >> msg.txt";
@@ -261,7 +284,6 @@ def flowHandler():
 def flow():
     printMsg("启动浏览器")
     openBrowser()
-    time.sleep(100)
     printMsg("启动成功\n打开登录页面")
     login()
     printMsg("请选择验证码")
@@ -368,6 +390,9 @@ def initConfigFile():
 
 def alert():
     winsound.PlaySound("train.wav", winsound.SND_FILENAME | winsound.SND_ASYNC)
+
+def shakeHandler(msg,delay):
+    threading.Thread(target=shake, args=(msg, delay,)).start()
 def shake(msg,delay):
     printMsg(msg)
     i = delay
