@@ -9,13 +9,15 @@ import requests
 import json
 from selenium import webdriver
 import tkinter as tk
+from selenium.common.exceptions import NoSuchElementException
 from tkinter import ttk
 from PIL import Image, ImageTk
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 import  random
 import winsound
 import traceback
-
+import datetime
+import http.client
 
 
 w = 210
@@ -26,8 +28,9 @@ handlerList = []
 status="START"
 count=0
 browser=None
+localDelay = 0
 
-property  = {"payPassword":"","alipayAccount":"","alipayPassword":"","payOrder":"https://kyfw.12306.cn/otn//payOrder/init","loginurl":"https://kyfw.12306.cn/otn/login/init","username":"","password":"","ticket":"https://kyfw.12306.cn/otn/leftTicket/init","fromStationText":"深圳","fromStation":"","toStationText":"长沙","toStation":"","time":"2017-08-17"}
+property  = {"trainNo":"","payPassword":"","alipayAccount":"","alipayPassword":"","payOrder":"https://kyfw.12306.cn/otn//payOrder/init","loginurl":"https://kyfw.12306.cn/otn/login/init","username":"","password":"","ticket":"https://kyfw.12306.cn/otn/leftTicket/init","fromStationText":"深圳","fromStation":"","toStationText":"长沙","toStation":"","time":"2017-08-17"}
 DesiredCapabilities.INTERNETEXPLORER['ignoreProtectedModeSettings'] = True
 
 def openBrowser():
@@ -84,9 +87,12 @@ def startScan():
     isSeach = True
     mainBtn.configure(image=stopim)
     status = "STOP"
+    # print  browser.find_element_by_name("prior_train-span")[0].text
+    # print  browser.find_element_by_name("prior_train-span")[1].text
     property["fromStationText"] = browser.find_element_by_id("fromStationText").get_attribute("value")
     property["toStationText"] = browser.find_element_by_id("toStationText").get_attribute("value")
     property["time"] = browser.find_element_by_id("train_date").get_attribute("value")
+    property["trainNo"] = browser.find_element_by_name("prior_train-span")
     printStation(property["fromStationText"]  + "-" +property["toStationText"])
     printTime(property["time"])
     #threading.Thread(target=useRequest).start()
@@ -139,9 +145,8 @@ def stopScan():
 def toPayGatewayPage():
     global browser
     time.sleep(5)
-    browser.find_element_by_id("payButton").click()
-    browser.find_element_by_id("payButton").click()
-    browser.find_element_by_id("payButton").click()
+    validClick("payButton")
+    # browser.find_element_by_id("payButton").click()
     toPayAlipayPage()
 
 def toPayAlipayPage():
@@ -156,7 +161,8 @@ def toPayOrderByAlipay():
         time.sleep(5)
         browser.find_element_by_id("J_tLoginId").send_keys(property["alipayAccount"])
         browser.find_element_by_id("payPasswd_rsainput").send_keys(property["alipayPassword"])
-        browser.find_element_by_id("J_submitBtn").click()
+        validClick("J_submitBtn")
+        # browser.find_element_by_id("J_submitBtn").click()
         toPayFinal()
 
 def toPayFinal():
@@ -171,14 +177,25 @@ def toPayFinal():
     ''', elem, property["payPassword"])
     browser.find_element_by_id("J_authSubmit").click()
 
+def regulateFrequency():
+    global browser
+    now = datetime.datetime.now()-datetime.timedelta(seconds=localDelay)
+    if now.minute%30<=1 and  abs(now.second-60)<=3:
+        browser.execute_script('''
+               autoSearchTime = 100
+           ''')
+    else:
+        browser.execute_script('''
+               autoSearchTime = 1000
+           ''')
+
 def changeFrequency():
     global browser
     global isSeach
     browser.execute_script('''
-        autoSearchTime = 1000
+        autoSearchTime = 2000
     ''')
-    browser.find_element_by_id("query_ticket").click()
-    if browser.find_element_by_id("query_ticket").text == "查询":
+    while browser.find_element_by_id("query_ticket").text == "查询":
         browser.find_element_by_id("query_ticket").click()
     while isSeach:
         time.sleep(1)
@@ -188,7 +205,10 @@ def changeFrequency():
             alert()
             toPayGatewayPage()
             break
-    browser.find_element_by_id("query_ticket").click()
+        regulateFrequency()
+
+    while browser.find_element_by_id("query_ticket").text == "停止查询":
+        browser.find_element_by_id("query_ticket").click()
 
 
 
@@ -362,6 +382,7 @@ def saveConfig():
     property["loginurl"] = loginurl.get()
     property["ticket"] = ticket.get()
     property["payOrder"] = payOrder.get()
+    property["payPassword"] =  payPassword.get()
     config.withdraw()
     updateConfig()
 
@@ -411,9 +432,41 @@ def resource_path(relative):
     return os.path.join(relative)
 
 
+
+
+def getTimeDelay():
+    global localDelay
+    realtime  = getWebservertime("www.baidu.com")
+    localDelay = (datetime.datetime.now()-realtime).total_seconds()
+
+def getWebservertime(host):
+    conn = http.client.HTTPConnection(host)
+    conn.request("GET", "/")
+    r = conn.getresponse()
+    ts = r.getheader('date')  # 获取http头date部分
+
+    # 将GMT时间转换成北京时间
+    ltime = time.strptime(ts[5:25], "%d %b %Y %H:%M:%S")
+    ttime = time.localtime(time.mktime(ltime) + 8 * 60 * 60)
+    realtime =   datetime.datetime(ttime.tm_year, ttime.tm_mon, ttime.tm_mday,ttime.tm_hour, ttime.tm_min, ttime.tm_sec)
+    # dat = "%u-%02u-%02u" % (ttime.tm_year, ttime.tm_mon, ttime.tm_mday)
+    # tm = "%02u:%02u:%02u" % (ttime.tm_hour, ttime.tm_min, ttime.tm_sec)
+    return realtime
+
+def validClick(id):
+    global browser
+    while True:
+        try:
+            time.sleep(1)
+            browser.find_element_by_id(id).click()
+            break
+        except NoSuchElementException,e:
+            pass
+
 if __name__=='__main__':
     reload(sys)
     sys.setdefaultencoding('utf-8')
+    getTimeDelay()
     initConfigFile()
     global startim
     global stopim
