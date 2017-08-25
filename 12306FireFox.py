@@ -10,6 +10,8 @@ import json
 from selenium import webdriver
 import tkinter as tk
 from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.firefox.firefox_binary import FirefoxBinary
 from tkinter import ttk
 from PIL import Image, ImageTk
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
@@ -31,20 +33,13 @@ browser=None
 localDelay = 0
 
 property  = {"trainNo":"","payPassword":"","alipayAccount":"","alipayPassword":"","payOrder":"https://kyfw.12306.cn/otn//payOrder/init","loginurl":"https://kyfw.12306.cn/otn/login/init","username":"","password":"","ticket":"https://kyfw.12306.cn/otn/leftTicket/init","fromStationText":"深圳","fromStation":"","toStationText":"长沙","toStation":"","time":"2017-08-17"}
-DesiredCapabilities.INTERNETEXPLORER['ignoreProtectedModeSettings'] = True
 
 def openBrowser():
     global browser
-    # browser = webdriver.Ie()
+    profile_dir = "C:\\Users\\zhouchuang\\AppData\\Roaming\\Mozilla\\Firefox\\Profiles\\jovv6oyr.seleniumprofile"
+    profile = webdriver.FirefoxProfile(profile_dir)
+    browser = webdriver.Firefox(profile)
     # browser.maximize_window()
-    try:
-        # iedriver = "C:\Python27\IEDriverServer.exe"
-        # os.environ["webdriver.ie.driver"] = iedriver
-        browser = webdriver.Ie()
-        browser.maximize_window()
-    except Exception,e:
-        log(traceback.format_exc())
-        pass
 
 def log(msg):
     profile = "C:\\Users\\" + getpass.getuser() + "\\.tools" + "\\12306.err"
@@ -56,7 +51,9 @@ def login():
     global browser
     global handlerList
     browser.get(property["loginurl"])
+    browser.find_element_by_id("username").clear()
     browser.find_element_by_id("username").send_keys(property["username"])
+    browser.find_element_by_id("password").clear()
     browser.find_element_by_id("password").send_keys(property["password"])
     handlerList.append(browser.current_window_handle)
 
@@ -184,18 +181,27 @@ def regulateFrequency():
     now = datetime.datetime.now()-datetime.timedelta(seconds=localDelay)
     if  abs(now.second-30)>=27:
         browser.execute_script('''
-               autoSearchTime = 100
+               window.autoSearchTime = 100;
            ''')
     else:
         browser.execute_script('''
-               autoSearchTime = 1500
-           ''')
+           window.autoSearchTime = 1300;
+        ''')
+
 
 def changeFrequency():
     global browser
     global isSeach
+    # browser.execute_script('''
+    #     $('#clearAll').after('<a href="javascript:" id="changeFreq"  class="btn-small" shape="rect">freq</a>');
+    #     $('#changeFreq').click(function(){
+    #         window.autoSearchTime = 1200;
+    #         $('#changeFreq').text(window.autoSearchTime);
+    #     });
+    #     $('#changeFreq').click();
+    # ''')
     browser.execute_script('''
-        autoSearchTime = 1500
+        window.autoSearchTime = 1300;
     ''')
     delayClickById("query_ticket", 1,"查询","停止查询")
     # while browser.find_element_by_id("query_ticket").text == "查询":
@@ -243,7 +249,7 @@ def switchCurrentHandler():
     for handler in browser.window_handles:
         if handler not in handlerList:
             browser.switch_to_window(handler)
-            browser.maximize_window()
+            # browser.maximize_window()
             handlerList.append(handler)
             break
 
@@ -255,6 +261,16 @@ def openTicket():
     # browser.execute_script("window.open('"+property["ticket"]+"')")
     # switchCurrentHandler()
     browser.get(property["ticket"])
+    time.sleep(2)
+    browser.find_element_by_id("fromStationText").click()
+    browser.find_element_by_id("fromStationText").send_keys("长沙".decode("utf-8"))
+    browser.find_element_by_id("fromStationText").send_keys(Keys.ENTER)
+
+    browser.find_element_by_id("toStationText").click()
+    browser.find_element_by_id("toStationText").send_keys("岳阳".decode("utf-8"))
+    browser.find_element_by_id("toStationText").send_keys(Keys.ENTER)
+
+
     printMsg("填写购票信息\n点击扫描按钮")
     mainBtn.configure(state="normal")
     mainBtn.configure(image=scanim)
