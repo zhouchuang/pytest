@@ -92,9 +92,9 @@ def startScan():
     property["trainNo"] = browser.find_element_by_name("prior_train-span")
     printStation(property["fromStationText"]  + "-" +property["toStationText"])
     printTime(property["time"])
-    #threading.Thread(target=useRequest).start()
-    # threading.Thread(target=autoSearch).start()
-    threading.Thread(target=changeFrequency).start()
+    threading.Thread(target=useRequest).start()
+    #threading.Thread(target=autoSearch).start()
+    # threading.Thread(target=changeFrequency).start()
 def useRequest():
     matchParam()
     scanTicket()
@@ -107,12 +107,13 @@ def scanTicket():
     while isSeach:
         response = requests.get(url, verify=False)
         response.raise_for_status()
-        compressdata = json.loads(response.text)
-        # for str in  compressdata["data"]["result"]:
-            # print str
-        count += 1
-        # print compressdata
-        time.sleep(0.5)
+        # compressdata = json.loads(response.text)
+        # # for str in  compressdata["data"]["result"]:
+        #     # print str
+        # count += 1
+        # # print compressdata
+        time.sleep(0.1)
+        print response.text
 
 def matchParam():
     response = requests.get("https://kyfw.12306.cn/otn/resources/js/framework/station_name.js?station_version=1.9024",verify=False)
@@ -136,9 +137,17 @@ def stopScan():
     isSeach = False
     status = "SCAN"
     mainBtn.configure(image=scanim)
-    printMsg("已经扫描"+str(count)+"次")
+    #printMsg("已经停止扫描")
+    threading.Thread(target=showTime).start()
 
-
+def showTime():
+    global isSeach
+    while not isSeach:
+        time.sleep(1)
+        now = datetime.datetime.now() - datetime.timedelta(seconds=localDelay)
+        printNow(fullTime(now.hour)+":"+fullTime(now.minute)+":"+fullTime(now.second))
+def fullTime(num):
+    return ("" if num>9 else "0")+str(num)
 def toPayGatewayPage():
     global browser
     delayClickById("payButton",2)
@@ -179,14 +188,15 @@ def toPayFinal():
 def regulateFrequency():
     global browser
     now = datetime.datetime.now()-datetime.timedelta(seconds=localDelay)
-    if  abs(now.second-30)>=27:
+    if (now.minute + 1) % 30 <= 1 and  abs(now.second-30)>=28:
         browser.execute_script('''
                window.autoSearchTime = 100;
            ''')
     else:
         browser.execute_script('''
-           window.autoSearchTime = 1300;
+           window.autoSearchTime = 2000;
         ''')
+    printNow(fullTime(now.hour)+":"+fullTime(now.minute)+":"+fullTime(now.second))
 
 
 def changeFrequency():
@@ -201,13 +211,13 @@ def changeFrequency():
     #     $('#changeFreq').click();
     # ''')
     browser.execute_script('''
-        window.autoSearchTime = 1300;
+        window.autoSearchTime = 2000;
     ''')
     delayClickById("query_ticket", 1,"查询","停止查询")
     # while browser.find_element_by_id("query_ticket").text == "查询":
     #     browser.find_element_by_id("query_ticket").click()
     while isSeach:
-        time.sleep(1)
+        time.sleep(0.5)
         if  browser.current_url and str(property["payOrder"]) in str(browser.current_url):
             stopScan()
             shakeHandler("抢到票了啊",200)
@@ -263,11 +273,11 @@ def openTicket():
     browser.get(property["ticket"])
     time.sleep(2)
     browser.find_element_by_id("fromStationText").click()
-    browser.find_element_by_id("fromStationText").send_keys("长沙".decode("utf-8"))
+    browser.find_element_by_id("fromStationText").send_keys("深圳".decode("utf-8"))
     browser.find_element_by_id("fromStationText").send_keys(Keys.ENTER)
 
     browser.find_element_by_id("toStationText").click()
-    browser.find_element_by_id("toStationText").send_keys("岳阳".decode("utf-8"))
+    browser.find_element_by_id("toStationText").send_keys("长沙".decode("utf-8"))
     browser.find_element_by_id("toStationText").send_keys(Keys.ENTER)
 
 
@@ -341,20 +351,25 @@ def outstandingOrder():
     toPayGatewayPage()
 
 def printMsg(msg):
-    canvas.delete("msg","station","time")
+    canvas.delete("msg","station","time","now")
     canvas.create_text(btnW+2, h / 2,  # 使用create_text方法在坐标（302，77）处绘制文字
                        text=msg  # 所绘制文字的内容
                        , fill='#BB4444', tags="msg")  # 所绘制文字的颜色为灰色
 def printStation(station):
     canvas.delete("station","msg")
-    canvas.create_text(btnW+2, h / 3,
+    canvas.create_text(btnW+2, h*2 / 4,
                        text=station
                        , fill='#BB4444', tags="station")
 def printTime(time):
     canvas.delete("time","msg")
-    canvas.create_text(btnW+2, h*2 / 3,
+    canvas.create_text(btnW+2, h*3 / 4,
                        text=time
                        , fill='#BB4444', tags="time")
+def printNow(t):
+    canvas.delete("now","msg")
+    canvas.create_text(btnW+2, h*1 / 4,
+                       text=t
+                       , fill='#BB4444', tags="now")
 
 
 def mousedownHandler(event):

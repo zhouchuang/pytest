@@ -10,6 +10,8 @@ print now,d1
 print (now-d1).min
 print (now-d1).seconds
 
+for i in range(60):
+    print (i + 1) % 30 <= 1 ,i
 # response = requests.get("http://route.showapi.com/630-1?showapi_appid=myappid&showapi_sign=mysecret", verify=False)
 # response.raise_for_status()
 # print response.text
